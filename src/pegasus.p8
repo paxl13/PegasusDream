@@ -3,7 +3,6 @@ version 42
 __lua__
 -- pegasus dream
 --
--- test
 
 printh('------------')
 
@@ -42,6 +41,7 @@ function _update60()
 	}, invoke('update'))
 
 	foreach(actors, invoke('update'))
+	d(actors)
  
  -- points:update()
 	-- io:update()
@@ -70,21 +70,43 @@ end
 
 -->8
 -- support classes
+-- 
+--
+--
+
+
+function indent2(s)
+	local l=split(s, '\n')
+	local rv=''
+	for i=1,#l-1 do
+		rv..=l[i]..'\n  '
+	end
+	return rv..l[#l]
+end
+
+function maybeindent(v)
+	if type(v)=='table' then
+		return indent2(tostr(v))
+	end
+	
+	return v
+end
 
 function tbl_tostr(t)
-	local name = '<'..(t.NAME or '')..'>'
-	local rv='tbl'..name..': {\n'
+	local rv=t.NAME..': {\n'
 	for k, v in pairs(t) do
-		rv..=' '..k..':'
-		rv..=tostr(v)..',\n'
+		v=maybeindent(v)
+		rv..=' '..k..'='..v..',\n'
 	end
 	return rv..'}'
 end
 
-function seq_tostr(s)
-	local rv = 'seq: {\n'
-	for i, v in ipairs(s) do
-		rv..=' '..tostr(v)..', \n'
+function seq_tostr(s, n)
+	local rv = (n or 'seq')..': {\n'
+	for v in all(s) do
+		v=maybeindent(v)
+
+		rv..=' '..v..', \n'
 	end
 	return rv..'}'
 end
@@ -113,10 +135,22 @@ seq=class:new{
 		return class.new(
 		 self,
 		 s, 
-			{__tostring=seq_tostr}
+			{__tostring=function (s) return seq_tostr(s, self.NAME) end}
 		)
 	end
 }
+
+zzz=tbl:new{
+	s="str",
+	n=123,
+	a=tbl:new{
+		b=tbl:new{
+			c=seq:new{1,2,3}
+		}
+	}
+}
+
+printh(zzz)
 
 vector=class:new{
 	x=0,
@@ -414,9 +448,6 @@ player=class:new{
 		)
 
 		sprite:move(mv);
-
-		-- x+=mv.x
-		-- y+=mv.y
  end,
 }
 
