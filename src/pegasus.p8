@@ -12,12 +12,9 @@ function _init()
 
  actors=seq:new({},'actors')
 
--- add(actors, ennemy:create(rnd(128), rnd(128)))
--- add(actors, ennemy:create(rnd(128), rnd(128)))
---	add(actors, ennemy:create(rnd(128), rnd(128)))
---	add(actors, ennemy:create(rnd(128), rnd(128)))
-
- add(actors, knight:create(48,48))
+ for _=1,10 do
+  add(actors, knight(rnd(128),rnd(128)))
+ end
  
 	io:init()
 	player:init()
@@ -107,7 +104,7 @@ function ifn(v)
 end
 
 function tbl_tostr(t)
-	local rv=t.NAME..': {\n'
+	local rv=(t.NAME or 'unamed')..': {\n'
 	for k, v in pairs(t) do
 		v=ifn(v)
 		rv..=' '..k..'='..v..',\n'
@@ -133,7 +130,11 @@ class=setmetatable({
 		mt = mt or {}
 		mt.__index=mt.__index or self
 		mt.__tostring=mt.__tostring or tbl_tostr
-
+  mt.__call=mt.__call or function (tbl, ...) 
+   if tbl.create then
+    return tbl:create(...)
+   end
+  end
 		return setmetatable(t, mt)
 	end,
 
@@ -162,7 +163,7 @@ seq=class:new{
 	end
 }
 
-vector=class:new{
+vec2=class:new{
 	x=0,
 	y=0,
 
@@ -170,17 +171,16 @@ vector=class:new{
 		local len=#self;
 
 		if (len==0) then
-			return vector:create(0, 0)
+			return vec2(0, 0)
 		else
 			return self/#self;
 		end
 	end,
 
 	add=function(self, i, j)
-		return vector:create(
-		 self.x+i,
-			self.y+j
-		)
+  self.x+=i
+  self.y+=j
+  return self;
 	end,
 
 	create=function(self, x, y)
@@ -195,28 +195,35 @@ vector=class:new{
      end,
 
     __add=function(v1, v2)
-     return vector:create(
+     return vec2(
      v1.x+v2.x,
      v1.y+v2.y
      )
     end,
 
+    __sub=function(v1, v2)
+     return vec2(
+     v1.x-v2.x,
+     v1.y-v2.y
+     )
+    end,
+
     __mul=function(a, b)
      if (type(b)=='number') then
-      return vector:create(
+      return vec2(
        a.x*b,
        a.y*b
       )
      end
 
-     return vector:create(
+     return vec2(
       a.x*b.x,
       a.y*b.y
      )
     end,
 
     __div=function(v1, q)
-     return vector:create(
+     return vec2(
       v1.x/q,
       v1.y/q
      )
@@ -235,6 +242,7 @@ vector=class:new{
 	end,
 }
 
+
 io=class:new{
 	vec=nil,
 	norm=nil,
@@ -247,8 +255,8 @@ io=class:new{
 	nodir=false,
 
 	init=function(_ENV)
-		vec=vector:create(0, 0)
-		norm=vector:create(0, 0)
+		vec=vec2(0, 0)
+		norm=vec2(0, 0)
 	end,
 
 	update=function(_ENV)
@@ -291,116 +299,74 @@ io=class:new{
 sprite=class:new{
 	NAME='sprite',
 
-	create = function(self, x, y, tileId)
+	create = function(self, pos_vec, tileId)
 		local tbl = class.new(self, {
-			x=x or 0,
-			y=y or 0,
-			tileId=tileId,
-		}, {__call=function(s) return s.x,s.y; end})
+   pos=pos_vec,
+			id=tileId,
+		}, {__call=function(s) return s.pos(); end})
 		return tbl;
 	end,
 
 	draw = function(_ENV)
-		spr(tileId, x, y)
+		spr(id, pos())
 	end,
 
 	update=function()
 	end,
-
-	move=function(_ENV, v1)
-		x,y = v1:add(x,y)();
-	end,
-
-	moveto=function(_ENV,i,j)
-		x,y = i,j;
-	end
 }
 
 -->8
 -- game classes
 --
 
--- actor=class:new{
---  NAME='actor',
--- 
---  create=function(self, x, y, tileid)
---   local tbl=class.new(self, {
---    pos=vector:create(x,y),
---    tileid=tileid,
---   })
--- 
---   return tbl
---  end,
--- 
---  update=function()
---   d('should not be called ever')
+-- hasSprite={
+--  initSprite=function(_ENV,x,y,tileid)
+--   pos=vec2(x,y)
+--   id=tileid
 --  end,
 -- 
 --  draw=function(_ENV)
--- 		spr(tileid,pos())
---  end,
+--   spr(id, pos())
+--  end
 -- }
-
-hasSprite={
- initSprite=function(_ENV,x,y,tileid)
-  pos=vector:create(x,y)
-  id=tileid
- end,
-
- draw=function(_ENV)
-  spr(id, pos())
- end
-}
+-- tbl:include(hasSprite)
+-- other includes...
 
 knight=class:new{
  NAME='knight',
 
  create=function(self,x,y)
-  local tbl=class.new(self, {})
-  tbl:include(hasSprite)
-  -- other includes...
+  local pos=vec2(x,y)
 
-  tbl:initSprite(x,y,48)
-  d(tbl)
+  local tbl=class.new(self, {
+   pos=pos,
+   mv=vec2(0,0),
+   body=sprite(pos, 48)
+  })
+
   return tbl
  end,
 
  update=function(_ENV)
-  -- move pos toward the player slowly
-  pos=pos:add(rnd(4)-2, rnd(4)-2)
+  local v=player.pos-pos
+
+  v=v:normalize()
+		mv:add(v())
+
+  if (#mv>0.5) mv=mv:normalize()*0.5
+
+  pos:add(mv())
  end,
 
  draw=function(self)
-  -- never called
-  d('never called')
+  self.body:draw()
  end
-}
-
-
-ennemy=class:new{
-	NAME='ennemy',
-	create=function(self, x, y)
-	 local o=class.new(self, {})
-
-		o.sprite=sprite:create(x, y, 48)
-		-- todo some logic
-		return o
-	end,
-
-	update=function(_ENV)
-		sprite:move(
-	 	vector:create(rnd(2)-1, rnd(2)-1)
-		)
-	end,
-
-	draw=function(_ENV)
-	 sprite:draw();
-	end,
 }
 
 player=class:new{
  NAME='player',
  pos=nil,
+
 	sprite=nil,
 	spr_t={16,17,18,19,20,21,22,23},
 	spr_ix=0,
@@ -420,14 +386,15 @@ player=class:new{
 	},'anim color'),
 
 	init=function(_ENV)
-		mv=vector:create(0,0)
-		sprite=sprite:create(64, 64, 16)
+  pos=vec2(64,64)
+		mv=vec2(0,0)
+		sprite=sprite(pos, 16)
 	end,
 	
 	  
  draw=function (_ENV)
 		-- handle pegasus arrow
-  local x,y=sprite()
+  local x,y=pos()
   
   if in_boost then
    local mult=(timeload*20\5)/4
@@ -493,7 +460,7 @@ player=class:new{
 			 timeload=timeload+0.2
 			end
 
-			mv=vector:create(0, 0)
+			mv=vec2(0, 0)
 		elseif in_boost then
 			mv=(mv+(io.norm*0.15)):normalize()*3
 			if (colided) in_boost =false
@@ -511,14 +478,12 @@ player=class:new{
  	 spr_ix=(spr_ix-0.2)%#spr_t
   end
 
-		local x,y=sprite();
-
 		mv,colided=processcolision(
-		 mv:add(x,y),
+		 mv+pos,
 			mv
 		)
 
-		sprite:move(mv);
+  pos:add(mv())
  end,
 }
 
@@ -597,7 +562,7 @@ end
 
 mapper=class:new{
 	speed=12,
-	campos=vector:create(0,0),
+	campos=vec2(0,0),
 	
 	update=function(self)
 	 local animframe=framectr/self.speed
@@ -616,7 +581,7 @@ mapper=class:new{
 			)
 	 end
 
-		local x,y=player.sprite()
+		local x,y=player.pos()
 
 		self.campos.x=(x-64)<0 and 0 or x-64
 		self.campos.y=(y-64)<0 and 0 or y-64
