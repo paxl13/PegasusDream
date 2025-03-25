@@ -48,3 +48,11 @@ mapper=class:new{
 		camera(x,y)
 	end
 }
+
+  -- tentative animation code
+  if mv.x>0.2 then
+	  spr_ix=(spr_ix+0.2)%#spr_t
+  elseif mv.x<-0.2 then
+ 	 spr_ix=(spr_ix-0.2)%#spr_t
+  end
+-- tentative animation code for player
