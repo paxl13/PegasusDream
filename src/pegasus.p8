@@ -10,13 +10,15 @@ function _init()
  framectr=0
  palt(0, false)
  palt(1, true)
- actors=seq:new{}
+ actors=seq:new({},'actors')
 
  add(actors, ennemy:create(rnd(128), rnd(128)))
  add(actors, ennemy:create(rnd(128), rnd(128)))
 	add(actors, ennemy:create(rnd(128), rnd(128)))
 	add(actors, ennemy:create(rnd(128), rnd(128)))
 
+ d(actors)
+ 
 	hud.y=0
 	io:init()
 	player:init()
@@ -33,22 +35,14 @@ end
 function _update60()
  framectr+=1
 
-	foreach({
-		points,
-		io,
-		player,
-		mapper,
-	}, invoke('update'))
+ points:update()
+	io:update()
+	player:update()
+ mapper:update()
 
 	foreach(actors, invoke('update'))
-	-- d(actors)
- 
- -- points:update()
-	-- io:update()
-	-- player:update()
- -- mapper:update()
 
-	hud:set('#mv', formatf(#player.mv))
+	hud:set('#mv', format2(#player.mv))
 	hud:set('#fps', stat(7))
  hud:set('cam', mapper.campos)
 end
@@ -63,17 +57,40 @@ function _draw()
 	foreach(actors, invoke('draw'))
 
  points:draw()
-	mapper:draw(true)
 
---	hud:draw(x, y)
+ local x,y=mapper.campos()
+	hud:draw(x,y)
 end
 
 -->8
--- support classes
+-- support class/functions
 -- 
 
+function d(...)
+	for v in all(pack(...)) do
+	 printh(v)
+	end
+end
 
-function indent2(s)
+function getf0(x, y)
+	local colided = 
+	 fget(mget(x\8, y\8), 0)
+
+	local col = colided and 8 or 14
+
+ -- debugging code
+	points:add({ x, y, col })
+	
+ return colided
+end
+
+function format2(n)
+ return
+  flr(n) .. "." ..
+  flr(n%1 * 10^2)
+end
+
+function i2(s)
 	local l=split(s, '\n')
 	local rv=''
 	for i=1,#l-1 do
@@ -82,9 +99,9 @@ function indent2(s)
 	return rv..l[#l]
 end
 
-function maybeindent(v)
+function ifn(v)
 	if type(v)=='table' then
-		return indent2(tostr(v))
+		return i2(tostr(v))
 	end
 	
 	return v
@@ -93,7 +110,7 @@ end
 function tbl_tostr(t)
 	local rv=t.NAME..': {\n'
 	for k, v in pairs(t) do
-		v=maybeindent(v)
+		v=ifn(v)
 		rv..=' '..k..'='..v..',\n'
 	end
 	return rv..'}'
@@ -102,7 +119,7 @@ end
 function seq_tostr(s, n)
 	local rv = (n or 'seq')..': {\n'
 	for v in all(s) do
-		v=maybeindent(v)
+		v=ifn(v)
 
 		rv..=' '..v..', \n'
 	end
@@ -124,11 +141,18 @@ class=setmetatable({
 
 seq=class:new{
 	NAME='seq',
-	new=function(self, s)
+	new=function(self,s, name)
 		return class.new(
 		 self,
 		 s, 
-			{__tostring=function (ss) return seq_tostr(ss, self.NAME) end}
+			{__tostring=
+			  function (ss) 
+			   return seq_tostr(
+			    ss, 
+			    name or self.NAME
+			   ) 
+			  end
+			}
 		)
 	end
 }
@@ -149,7 +173,7 @@ vector=class:new{
 
 	add=function(self, i, j)
 		return vector:create(
-		  self.x+i,
+		 self.x+i,
 			self.y+j
 		)
 	end,
@@ -158,50 +182,50 @@ vector=class:new{
 		return class.new(
 		 self, 
 		 {x=x, y=y},
-     {
-      __tostring=function(v)
-        return 
-            'v<x='..formatf(v.x)..
-            ',y='..formatf(v.y)..'>'
-      end,
+   {
+    __tostring=function(v)
+     return 
+      'v<'..format2(v.x)..
+      ','..format2(v.y)..'>'
+     end,
 
-      __add=function(v1, v2)
-        return vector:create(
-          v1.x+v2.x,
-          v1.y+v2.y
-        )
-      end,
+    __add=function(v1, v2)
+     return vector:create(
+     v1.x+v2.x,
+     v1.y+v2.y
+     )
+    end,
 
-      __mul=function(v1, v)
-        if (type(v)=='number') then
-          return vector:create(
-            v1.x*v,
-            v1.y*v
-          )
-        end
+    __mul=function(a, b)
+     if (type(b)=='number') then
+      return vector:create(
+       a.x*b,
+       a.y*b
+      )
+     end
 
-        return vector:create(
-          v1.x*v.x,
-          v1.y*v.y
-        )
-      end,
+     return vector:create(
+      a.x*b.x,
+      a.y*b.y
+     )
+    end,
 
-      __div=function(v1, q)
-        return vector:create(
-          v1.x/q,
-          v1.y/q
-        )
-      end,
+    __div=function(v1, q)
+     return vector:create(
+      v1.x/q,
+      v1.y/q
+     )
+    end,
 
-      __len=function(v)
-        return sqrt(
-          v.x^2+v.y^2
-        )
-      end,
+    __len=function(v)
+     return sqrt(
+      v.x^2+v.y^2
+     )
+    end,
       
-      __call=function(v)
-        return v.x,v.y
-      end,
+    __call=function(v)
+     return v.x,v.y
+    end,
     })
 	end,
 }
@@ -352,6 +376,8 @@ player=class:new{
 	  
  draw=function (_ENV)
 		-- handle pegasus arrow
+  local x,y=sprite()
+  
   if in_boost then
    local mult=(timeload*20\5)/4
 	  local sx=8*mult
@@ -386,7 +412,6 @@ player=class:new{
 		-- sound effect
 		if (colided) sfx(0)
  end,
-
 
  processcolision=function(pos, mv)
   local colided=false
@@ -465,7 +490,7 @@ points=class:new({
 })
 
 hud=class:new({
-	y=128-6,
+	baseY=0,
 	col=7,
 	data={},
 	
@@ -477,8 +502,8 @@ hud=class:new({
 		end
 	end,
 
-	draw=function(_ENV, x)
-		rectfill(x,y,x+128,y+6,1)
+	draw=function(_ENV, x, y)
+		rectfill(x,y+baseY,x+128,y+baseY+6,1)
 		local str=""
 		for i,j in pairs(data) do
 			str=str..
@@ -488,33 +513,6 @@ hud=class:new({
 	end,
 })
 
--->8
--- helpers functions
---
-
-function getf0(x, y)
-	local colided = 
-	 fget(mget(x\8, y\8), 0) or
-	 fget(mget(x\8, (y\8)+32), 0)
-
-	local col = colided and 8 or 14
-
- -- debugging code
-	points:add({ x, y, col })
-	
- return colided
-end
-
-
-function formatf(v)
-	return flr(v*100/10)/10
-end
-
-function d(...)
-	for v in all(pack(...)) do
-	 printh(v)
-	end
-end
 -->8
 -- map stuff
 -- flags on tiles
@@ -528,7 +526,9 @@ function addmask(v, mask)
  return v
 end
 
-function eachtile_internal(x, y, fn)
+function eachtile(campos, fn)
+	local x,y=campos.x\8,campos.y\8
+
 	for i=x,x+15 do
 		for j=y,y+15 do
 			local t=mget(i, j)
@@ -542,24 +542,6 @@ function eachtile_internal(x, y, fn)
 			)
 		end
 	end
-end
-
---lint: eachtile
-function eachtile(campos, fn)
-	local x,y = campos()
-	local tile_x, tile_y=x\8,y\8
-
-	eachtile_internal(
-	 tile_x, 
-	 tile_y,
-		fn
-	)
-
-	eachtile_internal(
-	 tile_x, 
-	 tile_y+32,
-		fn
-	)
 end
 
 mapper=class:new{
@@ -589,20 +571,12 @@ mapper=class:new{
 		self.campos.y=(y-64)<0 and 0 or y-64
  end,
 
-	draw=function(_ENV, second_l)
+	draw=function(_ENV)
 		local x,y = campos()
-		second_l = second_l or false
-		local map_y = second_l and y+256 or y 
-		camera(x,map_y)
-		map()
-		
 		camera(x,y)
+		map()
 	end
 }
-
--->8
--- testing classes
-
 
 __gfx__
 00000000119999111199991111999911119999111199991111999911000000000000000000000000000000000000000011110000001111100000011100000000
