@@ -4,22 +4,22 @@ __lua__
 -- pegasus dream
 
 function _init()
- d('---INIT----')
+	d('---INIT----')
 
- framectr=0
- palt(0, false)
- palt(1, true)
+	framectr=0
+	palt(0, false)
+	palt(1, true)
 
- actors=seq:new({},'actors')
+	actors=seq:new({},'actors')
 
- for _=1,10 do
-  add(actors, knight(rnd(128),rnd(128)))
- end
- 
+	for _=1,10 do
+		add(actors, knight(rnd(128),rnd(128)))
+	end
+	
 	io:init()
 	player:init()
- 
- sfx(0)
+	
+	sfx(0)
 end
 
 function invoke(name)
@@ -29,32 +29,32 @@ function invoke(name)
 end
 
 function _update60()
- framectr+=1
+	framectr+=1
 
- points:update()
+	points:update()
 	io:update()
 	player:update()
- mapper:update()
+	mapper:update()
 
 	foreach(actors, invoke('update'))
 
 	hud:set('#mv', format2(#player.mv))
 	hud:set('#fps', stat(7))
- hud:set('cam', mapper.campos)
+	hud:set('cam', mapper.campos)
 end
 
 
 function _draw()
- cls(11)
+	cls(11)
 
 	mapper:draw()
 	player:draw()
 
 	foreach(actors, invoke('draw'))
 
- points:draw()
+	points:draw()
 
- local x,y=mapper.campos()
+	local x,y=mapper.campos()
 	hud:draw(x,y)
 end
 
@@ -64,35 +64,36 @@ end
 
 function d(...)
 	for v in all(pack(...)) do
-	 printh(v)
+		printh(v)
 	end
 end
 
 function is_wall(x, y)
 	local colided = 
-	 fget(mget(x\8, y\8), 0)
+		fget(mget(x\8, y\8), 0)
 
- -- debugging code
+	-- debugging code
 	points:add(x, y, 
-  colided and 8 or 9,
-  colided and 60 or 1,
-  colided and 2 or 1
- )
+		colided and 8 or 9,
+		colided and 60 or 1,
+		colided and 2 or 1
+	)
 	
- return colided
+	
+	return colided
 end
 
 function format2(n)
- return
-  flr(n) .. "." ..
-  flr(n%1 * 10^2)
+	return
+		flr(n) .. "." ..
+		flr(n%1 * 10^2)
 end
 
 function i2(s)
 	local l=split(s, '\n')
 	local rv=''
 	for i=1,#l-1 do
-		rv..=l[i]..'\n  '
+		rv..=l[i]..'\n		'
 	end
 	return rv..l[#l]
 end
@@ -132,34 +133,34 @@ class=setmetatable({
 		mt = mt or {}
 		mt.__index=mt.__index or self
 		mt.__tostring=mt.__tostring or tbl_tostr
-  mt.__call=mt.__call or function (tbl, ...) 
-   if tbl.create then
-    return tbl:create(...)
-   end
-  end
+		mt.__call=mt.__call or function (tbl, ...) 
+			if tbl.create then
+				return tbl:create(...)
+			end
+		end
 		return setmetatable(t, mt)
 	end,
 
- include=function(self, mixin)
-  for k,v in pairs(mixin) do
-   self[k]=v
-  end
- end
+	include=function(self, mixin)
+		for k,v in pairs(mixin) do
+			self[k]=v
+		end
+	end
 }, {__index = _ENV})
 
 seq=class:new{
 	NAME='seq',
 	new=function(self,s, name)
 		return class.new(
-		 self,
-		 s, 
+			self,
+			s, 
 			{__tostring=
-			  function (ss) 
-			   return seq_tostr(
-			    ss, 
-			    name or self.NAME
-			   ) 
-			  end
+					function (ss) 
+						return seq_tostr(
+							ss, 
+							name or self.NAME
+						) 
+					end
 			}
 		)
 	end
@@ -180,67 +181,67 @@ vec2=class:new{
 	end,
 
 	add=function(self, i, j)
-  self.x+=i
-  self.y+=j
-  return self;
+		self.x+=i
+		self.y+=j
+		return self;
 	end,
 
 	create=function(self, x, y)
 		return class.new(
-		 self, 
-		 {x=x, y=y},
-   {
-    __tostring=function(v)
-     return 
-      'v<'..format2(v.x)..
-      ','..format2(v.y)..'>'
-     end,
+			self, 
+			{x=x, y=y},
+			{
+				__tostring=function(v)
+					return 
+						'v<'..format2(v.x)..
+						','..format2(v.y)..'>'
+					end,
 
-    __add=function(v1, v2)
-     return vec2(
-      v1.x+v2.x,
-      v1.y+v2.y
-     )
-    end,
+				__add=function(v1, v2)
+					return vec2(
+						v1.x+v2.x,
+						v1.y+v2.y
+					)
+				end,
 
-    __sub=function(v1, v2)
-     return vec2(
-     v1.x-v2.x,
-     v1.y-v2.y
-     )
-    end,
+				__sub=function(v1, v2)
+					return vec2(
+					v1.x-v2.x,
+					v1.y-v2.y
+					)
+				end,
 
-    __mul=function(a, b)
-     if (type(b)=='number') then
-      return vec2(
-       a.x*b,
-       a.y*b
-      )
-     end
+				__mul=function(a, b)
+					if (type(b)=='number') then
+						return vec2(
+							a.x*b,
+							a.y*b
+						)
+					end
 
-     return vec2(
-      a.x*b.x,
-      a.y*b.y
-     )
-    end,
+					return vec2(
+						a.x*b.x,
+						a.y*b.y
+					)
+				end,
 
-    __div=function(v1, q)
-     return vec2(
-      v1.x/q,
-      v1.y/q
-     )
-    end,
+				__div=function(v1, q)
+					return vec2(
+						v1.x/q,
+						v1.y/q
+					)
+				end,
 
-    __len=function(v)
-     return sqrt(
-      v.x^2+v.y^2
-     )
-    end,
-      
-    __call=function(v)
-     return v.x,v.y
-    end,
-    })
+				__len=function(v)
+					return sqrt(
+						v.x^2+v.y^2
+					)
+				end,
+						
+				__call=function(v)
+					return v.x,v.y
+				end,
+				})
 	end,
 }
 
@@ -291,7 +292,7 @@ io=class:new{
 
 		local factor=1 
 		if (abs(i)==1 and abs(j)==1) then
-    factor=0.707
+				factor=0.707
 		end
 
 		norm=vec*factor
@@ -303,7 +304,7 @@ sprite=class:new{
 
 	create = function(self, pos_vec, tileId)
 		local tbl = class.new(self, {
-   pos=pos_vec,
+			pos=pos_vec,
 			id=tileId,
 		}, {__call=function(s) return s.pos(); end})
 		return tbl;
@@ -322,95 +323,95 @@ sprite=class:new{
 --
 
 -- hasSprite={
---  initSprite=function(_ENV,x,y,tileid)
---   pos=vec2(x,y)
---   id=tileid
---  end,
+--		initSprite=function(_ENV,x,y,tileid)
+--			pos=vec2(x,y)
+--			id=tileid
+--		end,
 -- 
---  draw=function(_ENV)
---   spr(id, pos())
---  end
+--		draw=function(_ENV)
+--			spr(id, pos())
+--		end
 -- }
 -- tbl:include(hasSprite)
 -- other includes...
 
 knight=class:new{
- NAME='knight',
+	NAME='knight',
 
- create=function(self,x,y)
-  local pos=vec2(x,y)
+	create=function(self,x,y)
+		local pos=vec2(x,y)
 
-  local tbl=class.new(self, {
-   pos=pos,
-   mv=vec2(0,0),
-   body=sprite(pos, 48)
-  })
+		local tbl=class.new(self, {
+			pos=pos,
+			mv=vec2(0,0),
+			body=sprite(pos, 48)
+		})
 
-  return tbl
- end,
+		return tbl
+	end,
 
- update=function(_ENV)
-  local v=player.pos-pos
+	update=function(_ENV)
+		local v=player.pos-pos
 
-  v=v:normalize()
+		v=v:normalize()
 		mv:add(v())
 
-  if (#mv>0.5) mv=mv:normalize()*0.5
+		if (#mv>0.5) mv=mv:normalize()*0.5
 
-  pos:add(mv())
- end,
+		pos:add(mv())
+	end,
 
- draw=function(_ENV)
-  body:draw()
- end
+	draw=function(_ENV)
+		body:draw()
+	end
 }
 
 player=class:new{
- NAME='player',
+	NAME='player',
 	in_boost=false,
- timeload=0,
+	timeload=0,
 
 
 	init=function(_ENV)
-  pos=vec2(64,64)
+		pos=vec2(64,64)
 		mv=vec2(0,0)
 
-  colided=false
+		colided=false
 		body=sprite(pos, 16)
 	end,
 	
- processcolision=function(pos, mv)
-  local colided=false
+	processcolision=function(pos, mv)
+		local colided=false
 
-  -- a  b
-  -- c  d
+		-- a		b
+		-- c		d
 
-  local a = is_wall(pos())
-  local b = is_wall((pos+vec2(0,7))())
-  local c = is_wall((pos+vec2(7,0))())
-  local d = is_wall((pos+vec2(7,7))())
+		local a = is_wall(pos())
+		local b = is_wall((pos+vec2(0,7))())
+		local c = is_wall((pos+vec2(7,0))())
+		local d = is_wall((pos+vec2(7,7))())
 
-  if (a and c or b and d) then
-   mv.y*=-1
-   colided=true
-  elseif (a and b or c and d) then
-   mv.x*=-1
-   colided=true
-  elseif (a or b or c or d) then
-   mv*=-1
-   colided=true
-  end
+		if (a and c or b and d) then
+			mv.y*=-1
+			colided=true
+		elseif (a and b or c and d) then
+			mv.x*=-1
+			colided=true
+		elseif (a or b or c or d) then
+			mv*=-1
+			colided=true
+		end
 
-  return mv,colided
- end,
+		return mv,colided
+	end,
 
- update=function (_ENV)
+	update=function (_ENV)
 		-- pegasus logic
 		if io.x then
 			in_boost=true
 
 			if(timeload<3) then
-			 timeload=timeload+0.2
+				timeload=timeload+0.2
 			end
 
 			mv=vec2(0, 0)
@@ -420,95 +421,93 @@ player=class:new{
 			timeload=2
 		else
 			mv+=io.norm
-  	if(#mv>2.5) mv=mv:normalize()*2.5
+			if(#mv>2.5) mv=mv:normalize()*2.5
 			if(io.nodir) mv=mv*0.95
 		end
 		
 		mv,colided=processcolision(
-		 mv+pos,
+			mv+pos,
 			mv
 		)
 
-  pos:add(mv())
- end,
+		pos:add(mv())
+	end,
 
- drawArrow=function(_ENV)
-  local x,y=pos()
-  local mult=(timeload*20\5)/4
-	 local sx=8*mult
+	drawArrow=function(_ENV)
+		local x,y=pos()
+		local mult=(timeload*20\5)/4
+		local sx=8*mult
 
-  local acol={
-   [1]=10,
-   [2]=9,
-   [3]=8,
-  }
-	 local col=acol[flr(mult)]
-	 
-	 pal(9, col)
-	 if (io.vec.y!=0) then
-		 sspr(
-		  64,8,
-		  7,7,
-		  (x+4)-(sx/2),(y+4)-(sx/2),
-		  sx,sx,
-		  false,io.vec.y>0  
-		 )
-	 else
-		 sspr(
-		  71,8,
-		  7,7,
-		  (x+4)-(sx/2),(y+4)-(sx/2),
-		  sx,sx,
-		  io.vec.x>0,false  
-		 )
+		local acol={
+			[1]=10,
+			[2]=9,
+			[3]=8,
+		}
+		local col=acol[flr(mult)]
+		
+		pal(9, col)
+		if (io.vec.y!=0) then
+			sspr(
+				64,8,
+				7,7,
+				(x+4)-(sx/2),(y+4)-(sx/2),
+				sx,sx,
+				false,io.vec.y>0		
+			)
+		else
+			sspr(
+				71,8,
+				7,7,
+				(x+4)-(sx/2),(y+4)-(sx/2),
+				sx,sx,
+				io.vec.x>0,false		
+			)
 		end
-  pal(9,9)	 
- end,
+		pal(9,9)		
+	end,
 
- draw=function (_ENV)
-		-- handle pegasus arrow
-  local x,y=pos()
-  
-  if in_boost then
-   _ENV:drawArrow()
-	 end
+	draw=function (_ENV)
+	-- handle pegasus arrow
+	if in_boost then
+		_ENV:drawArrow()
+	end
 
-		body:draw();
+	body:draw();
+	-- sound effect
 
-		-- sound effect
-		if (colided) sfx(0)
- end,
+	if (colided) sfx(0)
+	end,
 }
 
 points=class:new({
- pt={},
+	pt={},
 
- add=function(_ENV,x,y,c,l,r)
-  add(
-   points.pt,
-   {x=x,y=y,c=c,l=l,r=r or 1}
-  )
- end,
+	add=function(_ENV,x,y,c,l,r)
+		add(
+			points.pt,
+			{x=x,y=y,c=c,l=l,r=r or 1}
+		)
+	end,
 
- update=function(_ENV)
-  for v in all(pt) do
-   v.l-=1
-   if(v.l<=0) then
-    del(pt, v)
-   end
-  end
- end,
- 
- draw=function(_ENV) 
+	update=function(_ENV)
+		for v in all(pt) do
+			v.l-=1
+			if(v.l<=0) then
+				del(pt, v)
+			end
+		end
+	end,
+	
+	draw=function(_ENV) 
 		foreach(pt, function(p)
-   if(p.r>1) then
-    circfill(p.x,p.y,p.r,p.c)
-   else
-			 pset(p.x, p.y, p.c)
-   end
+			if(p.r>1) then
+				circfill(p.x,p.y,p.r,p.c)
+			else
+				pset(p.x, p.y, p.c)
+			end
 		end)
- end,
- 
+	end,
+	
 })
 
 hud=class:new({
@@ -520,7 +519,7 @@ hud=class:new({
 		if not val then
 			del(data, key)
 		else
-		 data[key]=tostr(val)
+			data[key]=tostr(val)
 		end
 	end,
 
@@ -529,7 +528,7 @@ hud=class:new({
 		local str=""
 		for i,j in pairs(data) do
 			str=str..
-			 i..': '..j..' '
+				i..': '..j..' '
 		end
 		print(str,x,y,col)
 	end,
@@ -542,10 +541,10 @@ hud=class:new({
 -- fl7: anmiation speed / 2
 
 function addmask(v, mask)
- local l=v&mask
- l=(l+1)&mask
- v=(v&~mask)+l
- return v
+	local l=v&mask
+	l=(l+1)&mask
+	v=(v&~mask)+l
+	return v
 end
 
 function eachtile(campos, fn)
@@ -556,7 +555,7 @@ function eachtile(campos, fn)
 			local t=mget(i, j)
 			local f=fget(t)
 			fn(
-			 t, f,
+				t, f,
 				function(n)
 					mset(i, j, n)
 				end,
@@ -571,27 +570,27 @@ mapper=class:new{
 	campos=vec2(0,0),
 	
 	update=function(self)
-	 local animframe=framectr/self.speed
-	 
-	 if (animframe<<16==0) then
+		local animframe=framectr/self.speed
+		
+		if (animframe<<16==0) then
 			eachtile(
-			 self.campos,
+				self.campos,
 				function(t,f,set)
-		   local m=(f>>4)&0b11
-		   local s=(f>>7)&0b1
-		   if m!=0 and animframe&s==0 
-		   then
+					local m=(f>>4)&0b11
+					local s=(f>>7)&0b1
+					if m!=0 and animframe&s==0 
+					then
 						set(addmask(t,m))
-			  end
+					end
 				end
 			)
-	 end
+		end
 
 		local x,y=player.pos()
 
 		self.campos.x=(x-64)<0 and 0 or x-64
 		self.campos.y=(y-64)<0 and 0 or y-64
- end,
+	end,
 
 	draw=function(_ENV)
 		camera(campos())
