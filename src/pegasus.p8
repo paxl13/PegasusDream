@@ -4,7 +4,7 @@ __lua__
 -- pegasus dream
 
 -- CONSTANTS
---[[const]] DEBUG=false
+--[[const]] DEBUG=true
 
 function _init()
 	d('---INIT----')
