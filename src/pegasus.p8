@@ -7,25 +7,14 @@ function _init()
 	d('---INIT----')
 
 	framectr=0
-	palt(0, false)
-	palt(1, true)
 
-	actors=seq:new({},'actors')
+	actors=seq({},'actors')
 
 	for _=1,10 do
-		add(actors, knight(rnd(128),rnd(128)))
+		add(actors, knight(16+rnd(128-32),16+rnd(128-32)))
 	end
-	
-	io:init()
-	player:init()
 	
 	sfx(0)
-end
-
-function invoke(name)
-	return function (o)
-		o[name](o)
-	end
 end
 
 function _update60()
@@ -38,9 +27,9 @@ function _update60()
 
 	foreach(actors, invoke('update'))
 
-	hud:set('#mv', format2(#player.mv))
-	hud:set('#fps', stat(7))
-	hud:set('cam', mapper.campos)
+	-- hud:set('#mv', format2(#player.mv))
+	-- hud:set('#fps', stat(7))
+	-- hud:set('cam', mapper.campos)
 end
 
 
@@ -54,8 +43,8 @@ function _draw()
 
 	points:draw()
 
-	local x,y=mapper.campos()
-	hud:draw(x,y)
+	-- local x,y=mapper.campos()
+	-- hud:draw(x,y)
 end
 
 -->8
@@ -68,20 +57,12 @@ function d(...)
 	end
 end
 
-function is_wall(x, y)
-	local colided = 
-		fget(mget(x\8, y\8), 0)
-
-	-- debugging code
-	points:add(x, y, 
-		colided and 8 or 9,
-		colided and 60 or 1,
-		colided and 2 or 1
-	)
-	
-	
-	return colided
+function invoke(name)
+	return function (o)
+		o[name](o)
+	end
 end
+
 
 function format2(n)
 	return
@@ -138,30 +119,34 @@ class=setmetatable({
 				return tbl:create(...)
 			end
 		end
-		return setmetatable(t, mt)
+
+		t=setmetatable(t, mt)
+		
+		-- For any class, call initialize when the instance is newed.
+		-- This will be most useful for singleton
+		if t.initialize then
+			t:initialize()
+		end
+
+		return t
 	end,
 
-	include=function(self, mixin)
+	include=function(tbl, mixin)
 		for k,v in pairs(mixin) do
-			self[k]=v
+			tbl[k]=v
 		end
 	end
 }, {__index = _ENV})
 
 seq=class:new{
 	NAME='seq',
-	new=function(self,s, name)
+	create=function(self,s,name)
 		return class.new(
 			self,
 			s, 
-			{__tostring=
-					function (ss) 
-						return seq_tostr(
-							ss, 
-							name or self.NAME
-						) 
-					end
-			}
+			{__tostring=function (own) 
+				return seq_tostr(own, name or self.NAME) 
+			end}
 		)
 	end
 }
@@ -206,8 +191,8 @@ vec2=class:new{
 
 				__sub=function(v1, v2)
 					return vec2(
-					v1.x-v2.x,
-					v1.y-v2.y
+						v1.x-v2.x,
+						v1.y-v2.y
 					)
 				end,
 
@@ -241,12 +226,13 @@ vec2=class:new{
 				__call=function(v)
 					return v.x,v.y
 				end,
-				})
+			})
 	end,
 }
 
 
 io=class:new{
+	NAME='io',
 	vec=nil,
 	norm=nil,
 	x=false,
@@ -257,7 +243,7 @@ io=class:new{
 	
 	nodir=false,
 
-	init=function(_ENV)
+	initialize=function(_ENV)
 		vec=vec2(0, 0)
 		norm=vec2(0, 0)
 	end,
@@ -358,6 +344,11 @@ knight=class:new{
 
 		if (#mv>0.5) mv=mv:normalize()*0.5
 
+		mv=process_map_colision(
+			pos+mv,
+			mv
+		)
+
 		pos:add(mv())
 	end,
 
@@ -368,44 +359,21 @@ knight=class:new{
 
 player=class:new{
 	NAME='player',
-	in_boost=false,
-	timeload=0,
 
-
-	init=function(_ENV)
+	initialize=function(_ENV)
 		pos=vec2(64,64)
 		mv=vec2(0,0)
 
 		colided=false
+		in_boost=false
+		timeload=0
+
 		body=sprite(pos, 16)
 	end,
 	
-	processcolision=function(pos, mv)
-		local colided=false
-
-		-- a		b
-		-- c		d
-
-		local a = is_wall(pos())
-		local b = is_wall((pos+vec2(0,7))())
-		local c = is_wall((pos+vec2(7,0))())
-		local d = is_wall((pos+vec2(7,7))())
-
-		if (a and c or b and d) then
-			mv.y*=-1
-			colided=true
-		elseif (a and b or c and d) then
-			mv.x*=-1
-			colided=true
-		elseif (a or b or c or d) then
-			mv*=-1
-			colided=true
-		end
-
-		return mv,colided
-	end,
-
-	update=function (_ENV)
+	-- todo: pass mask...
+	update=function (self)
+		local _ENV=self
 		-- pegasus logic
 		if io.x then
 			in_boost=true
@@ -421,12 +389,12 @@ player=class:new{
 			timeload=2
 		else
 			mv+=io.norm
-			if(#mv>2.5) mv=mv:normalize()*2.5
+			if(#mv>1) mv=mv:normalize()*1
 			if(io.nodir) mv=mv*0.95
 		end
 		
-		mv,colided=processcolision(
-			mv+pos,
+		mv,colided=process_map_colision(
+			pos+mv,
 			mv
 		)
 
@@ -467,15 +435,15 @@ player=class:new{
 	end,
 
 	draw=function (_ENV)
-	-- handle pegasus arrow
-	if in_boost then
-		_ENV:drawArrow()
-	end
+		-- handle pegasus arrow
+		if in_boost then
+			_ENV:drawArrow()
+		end
 
-	body:draw();
-	-- sound effect
+		body:draw();
+		-- sound effect
 
-	if (colided) sfx(0)
+		if (colided) sfx(0)
 	end,
 }
 
@@ -537,8 +505,58 @@ hud=class:new({
 -->8
 -- map stuff
 -- flags on tiles
+-- fl0: colision mask
 -- fl4,5: anmiation mask
 -- fl7: anmiation speed / 2
+
+function is_wall(x, y)
+	local colided = 
+		fget(mget(x\8, y\8), 0)
+
+	-- debugging code
+	points:add(x, y, 
+		colided and 8 or 9,
+		colided and 60 or 1,
+		colided and 2 or 1
+	)
+	
+	return colided
+end
+
+function process_map_colision(pos, mv)
+	-- sprite corners:
+	-- c1 c2
+	-- c3 c4
+
+	local colided=false
+
+	local c1 = is_wall(pos())
+	local c2 = is_wall((pos+vec2(0,7))())
+	local c3 = is_wall((pos+vec2(7,0))())
+	local c4 = is_wall((pos+vec2(7,7))())
+
+	if (c1 and c3 or c2 and c4) then
+		-- horizonal
+		mv.y*=-1
+		colided=true
+	end
+
+	if (c1 and c2 or c3 and c4) then
+		-- vertical
+		mv.x*=-1
+		colided=true
+	end
+
+	if (not colided and (
+		c1 or c2 or c3 or c4
+	)) then
+		-- corners
+		mv*=-1
+		colided=true
+	end
+
+	return mv,colided
+end
 
 function addmask(v, mask)
 	local l=v&mask
@@ -566,8 +584,14 @@ function eachtile(campos, fn)
 end
 
 mapper=class:new{
-	speed=12,
-	campos=vec2(0,0),
+	initialize=function(_ENV)
+		-- setup dark blue as transparency
+		palt(0, false)
+		palt(1, true)
+
+		speed=12
+		campos=vec2(0,0)
+	end,
 	
 	update=function(self)
 		local animframe=framectr/self.speed
