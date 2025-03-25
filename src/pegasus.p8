@@ -2,7 +2,6 @@ pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
 -- pegasus dream
---
 
 function _init()
  d('---INIT----')
@@ -10,16 +9,16 @@ function _init()
  framectr=0
  palt(0, false)
  palt(1, true)
+
  actors=seq:new({},'actors')
 
- add(actors, ennemy:create(rnd(128), rnd(128)))
- add(actors, ennemy:create(rnd(128), rnd(128)))
-	add(actors, ennemy:create(rnd(128), rnd(128)))
-	add(actors, ennemy:create(rnd(128), rnd(128)))
+-- add(actors, ennemy:create(rnd(128), rnd(128)))
+-- add(actors, ennemy:create(rnd(128), rnd(128)))
+--	add(actors, ennemy:create(rnd(128), rnd(128)))
+--	add(actors, ennemy:create(rnd(128), rnd(128)))
 
- d(actors)
+ add(actors, knight:create(48,48))
  
-	hud.y=0
 	io:init()
 	player:init()
  
@@ -104,7 +103,7 @@ function ifn(v)
 		return i2(tostr(v))
 	end
 	
-	return v
+	return tostr(v)
 end
 
 function tbl_tostr(t)
@@ -117,13 +116,13 @@ function tbl_tostr(t)
 end
 
 function seq_tostr(s, n)
-	local rv = (n or 'seq')..': {\n'
+	local rv = (n or 'seq')..': [\n'
 	for v in all(s) do
 		v=ifn(v)
 
 		rv..=' '..v..', \n'
 	end
-	return rv..'}'
+	return rv..']'
 end
 
 class=setmetatable({
@@ -136,7 +135,13 @@ class=setmetatable({
 		mt.__tostring=mt.__tostring or tbl_tostr
 
 		return setmetatable(t, mt)
-	end
+	end,
+
+ include=function(self, mixin)
+  for k,v in pairs(mixin) do
+   self[k]=v
+  end
+ end
 }, {__index = _ENV})
 
 seq=class:new{
@@ -281,35 +286,22 @@ io=class:new{
 
 		norm=vec*factor
 	end,
-
-	draw=function(_ENV)
-		rectfill(104,120,132,132,0)
-
-		if(x) spr(0,120,120)
-		if(o) spr(1,112,120)
-
-		-- todo make smaller clearer
-		-- sprites
-		if(vec.x==1) spr(4, 104, 120)
-		if(vec.x==-1) spr(5, 104, 120)
-		if(vec.y==-1) spr(3, 104, 120)
-		if(vec.y==1) spr(2, 104, 120)
-	end
 }
 
 sprite=class:new{
 	NAME='sprite',
-	create = function(self, x, y, id)
+
+	create = function(self, x, y, tileId)
 		local tbl = class.new(self, {
 			x=x or 0,
 			y=y or 0,
-			id=id,
+			tileId=tileId,
 		}, {__call=function(s) return s.x,s.y; end})
 		return tbl;
 	end,
 
 	draw = function(_ENV)
-		spr(id, x, y)
+		spr(tileId, x, y)
 	end,
 
 	update=function()
@@ -327,6 +319,63 @@ sprite=class:new{
 -->8
 -- game classes
 --
+
+-- actor=class:new{
+--  NAME='actor',
+-- 
+--  create=function(self, x, y, tileid)
+--   local tbl=class.new(self, {
+--    pos=vector:create(x,y),
+--    tileid=tileid,
+--   })
+-- 
+--   return tbl
+--  end,
+-- 
+--  update=function()
+--   d('should not be called ever')
+--  end,
+-- 
+--  draw=function(_ENV)
+-- 		spr(tileid,pos())
+--  end,
+-- }
+
+hasSprite={
+ initSprite=function(_ENV,x,y,tileid)
+  pos=vector:create(x,y)
+  id=tileid
+ end,
+
+ draw=function(_ENV)
+  spr(id, pos())
+ end
+}
+
+knight=class:new{
+ NAME='knight',
+
+ create=function(self,x,y)
+  local tbl=class.new(self, {})
+  tbl:include(hasSprite)
+  -- other includes...
+
+  tbl:initSprite(x,y,48)
+  d(tbl)
+  return tbl
+ end,
+
+ update=function(_ENV)
+  -- move pos toward the player slowly
+  pos=pos:add(rnd(4)-2, rnd(4)-2)
+ end,
+
+ draw=function(self)
+  -- never called
+  d('never called')
+ end
+}
+
 
 ennemy=class:new{
 	NAME='ennemy',
@@ -350,6 +399,8 @@ ennemy=class:new{
 }
 
 player=class:new{
+ NAME='player',
+ pos=nil,
 	sprite=nil,
 	spr_t={16,17,18,19,20,21,22,23},
 	spr_ix=0,
@@ -362,11 +413,11 @@ player=class:new{
 	pegasusload=false,
  timeload=0,
 
-	acol={
+	acol=seq:new({
 	 [1]=10,
 	 [2]=9,
 	 [3]=8,
-	},
+	},'anim color'),
 
 	init=function(_ENV)
 		mv=vector:create(0,0)
