@@ -5,7 +5,7 @@ find src/ | entr -s ' \
     --lint \
     --no-lint-unused-global \
     --count --input-count \
-    -m --rename-safe-only --focus-token \
+    -m --rename-safe-only \
     src/pegasus.p8 \
-    dist/pegasus.p8.png \
+    dist/pegasus.p8 \
 '
