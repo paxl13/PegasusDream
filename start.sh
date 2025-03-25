@@ -1,3 +1,8 @@
 #!/bin/bash
 
-pico8 -root_path ./src ./src/pegasus.p8
+trap 'kill $PICOID; exit' INT
+
+pico8 -root_path ./src -run ./src/pegasus.p8 &
+PICOID=$!
+./autoReload.sh
+
