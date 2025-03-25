@@ -3,6 +3,9 @@ version 42
 __lua__
 -- pegasus dream
 
+-- CONSTANTS
+--[[const]] DEBUG=false
+
 function _init()
 	d('---INIT----')
 
@@ -33,9 +36,11 @@ function _update60()
 
 	foreach(actors, invoke('update'))
 
-	-- hud:set('#mv', format2(#player.mv))
-	-- hud:set('#fps', stat(7))
-	-- hud:set('cam', mapper.campos)
+	if DEBUG then
+		hud:set('#mv', format2(#player.mv))
+		hud:set('#fps', stat(7))
+		hud:set('cam', mapper.campos)
+	end
 end
 
 
@@ -47,10 +52,17 @@ function _draw()
 
 	foreach(actors, invoke('draw'))
 
-	points:draw()
-
-	-- local x,y=mapper.campos()
-	-- hud:draw(x,y)
+	
+	if DEBUG then
+		points:draw()
+		hud:draw(mapper.campos())
+		foreach(actors, 
+			function(a)
+				local r = a.mask:offset(a.pos())
+				rect(r())
+			end
+		)
+	end
 end
 
 -->8
@@ -238,6 +250,35 @@ vec2=class:new{
 	end,
 }
 
+rect2=class.new{
+	NAME='rect2',
+
+	offset=function(self,i,j)
+		return rect2(
+			self.x1+i, self.y1+j,
+			self.x2+i, self.y2+j
+		)
+	end,
+
+	create=function(self,x1,y1,x2,y2)
+		local tbl=class.new(
+			self,
+			{ x1=x1,y1=y1,x2=x2,y2=y2 },
+			{
+				__tostring=function(_ENV)
+					return 'r<'..tostr(x1)..','..tostr(y1)..'\n'
+						 ..tostr(x2)..','..tostr(y2)..'>'
+				end,
+
+				__call=function(_ENV)
+						return x1,y1,x2,y2
+				end,
+			}
+		)
+
+		return tbl
+	end
+}
 
 io=class:new{
 	NAME='io',
@@ -318,22 +359,23 @@ sprite=class:new{
 
 actor=class:new{
 	NAME='actor',
+
+	-- defaults values
 	tileId=0,
 	speed=0,
+	mask=rect2(0,0,7,7),
+	mv=vec2(0,0),
 
 	create=function(self,x,y)
 		local pos=vec2(x,y)
 
 		local tbl=class.new(self, {
 			pos=pos,
-			mv=vec2(0,0),
 			body=sprite(pos, self.tileId),
 		})
 
 		return tbl
 	end,
-
-	-- update_mv=virtual function = 0
 
 	update=function(_ENV)
 		_ENV:update_mv()
@@ -344,15 +386,16 @@ actor=class:new{
 
 		mv=process_map_colision(
 			pos+mv,
+			mask,
 			mv
 		)
 
 		pos:add(mv())
 	end,
-
 	draw=function(_ENV)
 		body:draw()
 	end
+	-- update_mv=virtual function = 0
 }
 
 knight=actor:new{
@@ -400,6 +443,7 @@ player=class:new{
 	initialize=function(_ENV)
 		pos=vec2(64,64)
 		mv=vec2(0,0)
+		mask=rect2(2,2,5,5)
 
 		colided=false
 		in_boost=false
@@ -430,9 +474,9 @@ player=class:new{
 		end
 		
 		mv,colided=process_map_colision(
-			pos+mv+vec2(2,2),
-			mv,
-			vec2(3,3)
+			pos+mv,
+			mask,
+			mv
 		)
 
 		pos:add(mv())
@@ -550,29 +594,31 @@ function is_wall(x, y)
 	local colided = 
 		fget(mget(x\8, y\8), 0)
 
-	-- debugging code
-	points:add(x, y, 
-		colided and 8 or 9,
-		colided and 30 or 1,
-		colided and 2 or 1
-	)
+	if DEBUG then
+		-- debugging code
+		points:add(x, y, 
+			colided and 8 or 9,
+			colided and 30 or 1,
+			colided and 2 or 1
+		)
+	end
 	
 	return colided
 end
 
-function process_map_colision(pos, mv, mask)
+function process_map_colision(pos,mask,mv)
 	-- sprite corners:
 	-- c1 c2
 	-- c3 c4
 
-	mask=mask or vec2(7,7)
-
 	local colided=false
 
-	local c1 = is_wall(pos.x, pos.y)
-	local c2 = is_wall(pos.x, pos.y+mask.y)
-	local c3 = is_wall(pos.x+mask.x, pos.y)
-	local c4 = is_wall(pos.x+mask.x, pos.y+mask.y)
+	local m_x1, m_y1, m_x2, m_y2=mask()
+
+	local c1 = is_wall(pos.x+m_x1, pos.y+m_y1)
+	local c2 = is_wall(pos.x+m_x1, pos.y+m_y2)
+	local c3 = is_wall(pos.x+m_x2, pos.y+m_y1)
+	local c4 = is_wall(pos.x+m_x2, pos.y+m_y2)
 
 	if (c1 and c3 or c2 and c4) then
 		-- horizonal
