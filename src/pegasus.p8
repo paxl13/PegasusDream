@@ -4,16 +4,16 @@ __lua__
 -- pegasus dream
 --
 
-printh('------------')
-
 function _init()
+ d('---INIT----')
+
  framectr=0
  palt(0, false)
  palt(1, true)
  actors=seq:new{}
 
-	add(actors, ennemy:create(rnd(128), rnd(128)))
-	add(actors, ennemy:create(rnd(128), rnd(128)))
+ add(actors, ennemy:create(rnd(128), rnd(128)))
+ add(actors, ennemy:create(rnd(128), rnd(128)))
 	add(actors, ennemy:create(rnd(128), rnd(128)))
 	add(actors, ennemy:create(rnd(128), rnd(128)))
 
@@ -21,7 +21,7 @@ function _init()
 	io:init()
 	player:init()
  
--- music(0)
+ sfx(0)
 end
 
 function invoke(name)
@@ -41,7 +41,7 @@ function _update60()
 	}, invoke('update'))
 
 	foreach(actors, invoke('update'))
-	d(actors)
+	-- d(actors)
  
  -- points:update()
 	-- io:update()
@@ -71,8 +71,6 @@ end
 -->8
 -- support classes
 -- 
---
---
 
 
 function indent2(s)
@@ -124,33 +122,16 @@ class=setmetatable({
 	end
 }, {__index = _ENV})
 
--- semantic sugar
-tbl=class:new{
-	NAME='tbl'
-}
-
 seq=class:new{
 	NAME='seq',
 	new=function(self, s)
 		return class.new(
 		 self,
 		 s, 
-			{__tostring=function (s) return seq_tostr(s, self.NAME) end}
+			{__tostring=function (ss) return seq_tostr(ss, self.NAME) end}
 		)
 	end
 }
-
-zzz=tbl:new{
-	s="str",
-	n=123,
-	a=tbl:new{
-		b=tbl:new{
-			c=seq:new{1,2,3}
-		}
-	}
-}
-
-printh(zzz)
 
 vector=class:new{
 	x=0,
@@ -160,75 +141,68 @@ vector=class:new{
 		local len=#self;
 
 		if (len==0) then
-			return vector:new(0, 0)
+			return vector:create(0, 0)
 		else
 			return self/#self;
 		end
 	end,
 
 	add=function(self, i, j)
-		return vector:new(
+		return vector:create(
 		  self.x+i,
-				self.y+j
+			self.y+j
 		)
 	end,
 
-	new=function(self, x, y)
-		local vec = class.new(
+	create=function(self, x, y)
+		return class.new(
 		 self, 
-			{x=x, y=y}
-		)
+		 {x=x, y=y},
+     {
+      __tostring=function(v)
+        return 
+            'v<x='..formatf(v.x)..
+            ',y='..formatf(v.y)..'>'
+      end,
 
-		return setmetatable(
-		 vec, 
-			{
-				__index=self,
-				__tostring=function(v)
-					return 
-							'v<x='..formatf(v.x)..
-							',y='..formatf(v.y)..'>'
-				end,
+      __add=function(v1, v2)
+        return vector:create(
+          v1.x+v2.x,
+          v1.y+v2.y
+        )
+      end,
 
-				__add=function(v1, v2)
-					return vector:new(
-						v1.x+v2.x,
-						v1.y+v2.y
-					)
-				end,
+      __mul=function(v1, v)
+        if (type(v)=='number') then
+          return vector:create(
+            v1.x*v,
+            v1.y*v
+          )
+        end
 
-				__mul=function(v1, v)
-					if (type(v)=='number') then
-						return vector:new(
-							v1.x*v,
-							v1.y*v
-						)
-					end
+        return vector:create(
+          v1.x*v.x,
+          v1.y*v.y
+        )
+      end,
 
-					return vector:new(
-						v1.x*v.x,
-						v1.y*v.y
-					)
-				end,
+      __div=function(v1, q)
+        return vector:create(
+          v1.x/q,
+          v1.y/q
+        )
+      end,
 
-				__div=function(v1, q)
-					return vector:new(
-						v1.x/q,
-						v1.y/q
-					)
-				end,
-
-				__len=function(v)
-					return sqrt(
-						v.x^2+v.y^2
-					)
-				end,
-				
-				__call=function(v)
-					return v.x,v.y
-				end,
-			}
-
-		)
+      __len=function(v)
+        return sqrt(
+          v.x^2+v.y^2
+        )
+      end,
+      
+      __call=function(v)
+        return v.x,v.y
+      end,
+    })
 	end,
 }
 
@@ -244,8 +218,8 @@ io=class:new{
 	nodir=false,
 
 	init=function(_ENV)
-		vec=vector:new(0, 0)
-		norm=vector:new(0, 0)
+		vec=vector:create(0, 0)
+		norm=vector:create(0, 0)
 	end,
 
 	update=function(_ENV)
@@ -342,7 +316,7 @@ ennemy=class:new{
 
 	update=function(_ENV)
 		sprite:move(
-	 	vector:new(rnd(2)-1, rnd(2)-1)
+	 	vector:create(rnd(2)-1, rnd(2)-1)
 		)
 	end,
 
@@ -371,7 +345,7 @@ player=class:new{
 	},
 
 	init=function(_ENV)
-		mv=vector:new(0,0)
+		mv=vector:create(0,0)
 		sprite=sprite:create(64, 64, 16)
 	end,
 	
@@ -413,6 +387,27 @@ player=class:new{
 		if (colided) sfx(0)
  end,
 
+
+ processcolision=function(pos, mv)
+  local colided=false
+
+  if (getf0(pos.x, pos.y+4) or
+      getf0(pos.x+7, pos.y+4)
+  ) then
+   mv.x*=-1
+   colided=true
+  end
+
+  if (getf0(pos.x+4, pos.y) or
+      getf0(pos.x+4, pos.y+7)
+  ) then
+   mv.y*=-1
+   colided=true
+  end
+
+  return mv,colided
+ end,
+
  update=function (_ENV)
 		-- pegasus logic
 		if io.x then
@@ -422,7 +417,7 @@ player=class:new{
 			 timeload=timeload+0.2
 			end
 
-			mv=vector:new(0, 0)
+			mv=vector:create(0, 0)
 		elseif in_boost then
 			mv=(mv+(io.norm*0.15)):normalize()*3
 			if (colided) in_boost =false
@@ -510,25 +505,6 @@ function getf0(x, y)
  return colided
 end
 
-function processcolision(pos, mv)
-	local colided=false
-
-	if (getf0(pos.x, pos.y+4) or
-		   getf0(pos.x+7, pos.y+4)
-	) then
-		mv.x*=-1
-		colided=true
-	end
-
-	if (getf0(pos.x+4, pos.y) or
-		   getf0(pos.x+4, pos.y+7)
-	) then
-		mv.y*=-1
-		colided=true
-	end
-
-	return mv,colided
-end
 
 function formatf(v)
 	return flr(v*100/10)/10
@@ -538,19 +514,6 @@ function d(...)
 	for v in all(pack(...)) do
 	 printh(v)
 	end
-end
-
-function tohex(v)
- return tostr(v,true)
-end
-
-function round(v)
- local z=v&0x0.ffff
- if z<0.5 then
-  return flr(v)
- else
-  return ceil(v)
- end
 end
 -->8
 -- map stuff
@@ -601,14 +564,14 @@ end
 
 mapper=class:new{
 	speed=12,
-	campos=vector:new(0,0),
+	campos=vector:create(0,0),
 	
-	update=function(_ENV)
-	 local animframe=framectr/speed
+	update=function(self)
+	 local animframe=framectr/self.speed
 	 
 	 if (animframe<<16==0) then
 			eachtile(
-			 campos,
+			 self.campos,
 				function(t,f,set)
 		   local m=(f>>4)&0b11
 		   local s=(f>>7)&0b1
@@ -622,8 +585,8 @@ mapper=class:new{
 
 		local x,y=player.sprite()
 
-		campos.x=(x-64)<0 and 0 or x-64
-		campos.y=(y-64)<0 and 0 or y-64
+		self.campos.x=(x-64)<0 and 0 or x-64
+		self.campos.y=(y-64)<0 and 0 or y-64
  end,
 
 	draw=function(_ENV, second_l)
