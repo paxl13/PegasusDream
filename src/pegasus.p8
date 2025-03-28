@@ -13,8 +13,8 @@ function _init()
 
 	actors=seq({},'actors')
 
-	for _=1,10 do
-		local kind = rnd({knight, fool_knight})
+	for _=1,20 do
+		local kind = rnd({slime, knight, fool_knight})
 		add(actors, 
 			kind(
 				24+rnd(128-48),
@@ -23,6 +23,8 @@ function _init()
 		)
 	end
 	
+	add(actors, slime(48,48))
+
 	sfx(0)
 end
 
@@ -51,17 +53,23 @@ function _draw()
 	player:draw()
 
 	foreach(actors, invoke('draw'))
-
+	
 	
 	if DEBUG then
+		local displayOverlay = function (a)
+			color(9)
+			local r = a.mask:offset(a.pos())
+			rect(r())
+			color(7)
+			local pos=a.pos+vec2(3,3);
+			local zz=pos+(a.mv*20);
+			line(pos.x, pos.y, zz.x, zz.y)
+		end
+
 		points:draw()
 		hud:draw(mapper.campos())
-		foreach(actors, 
-			function(a)
-				local r = a.mask:offset(a.pos())
-				rect(r())
-			end
-		)
+		foreach(actors, displayOverlay)
+		displayOverlay(player)
 	end
 end
 
@@ -78,6 +86,18 @@ end
 function invoke(name)
 	return function (o)
 		o[name](o)
+	end
+end
+
+function get(name)
+	return function(o)
+		return o[name]
+	end
+end
+
+function id(val)
+	return function()
+		return val;
 	end
 end
 
@@ -378,25 +398,92 @@ actor=class:new{
 	end,
 
 	update=function(_ENV)
-		_ENV:update_mv()
+		if process_mv then
+			_ENV:process_mv()
+		else
+			if not behavior_cor or costatus(behavior_cor) == 'dead' then
+				if not behavior_step or behavior_step >= #behavior then
+					behavior_step = 0
+				end
+				behavior_step+=1
+				behavior_cor=cocreate(behavior[behavior_step])
+			end
 
-		if mv:sq_len() > (speed*speed) then
-			mv=mv:normalize() * speed
+			assert(coresume(behavior_cor, _ENV))
 		end
 
-		mv=process_map_colision(
-			pos+mv,
-			mask,
+
+--		if mv:sq_len() > (speed*speed) then
+			mv=mv:normalize() * speed
+--		end
+
+		mv,colided=process_map_colision(
+			mask:offset(pos()),
 			mv
 		)
 
 		pos:add(mv())
 	end,
+
 	draw=function(_ENV)
 		body:draw()
 	end
-	-- update_mv=virtual function = 0
+
+	-- process_mv=virtual function = 0
 }
+
+-- Behaviors coroutines
+
+function wait_(fnOrV)
+	return function(self)
+		local v=type(fnOrV)=='function' and fnOrV(self) or fnOrV
+		for _=1,v do
+			yield()
+		end
+	end
+end
+
+function random_vec()
+	return vec2(rnd(2)-1, rnd(2)-1);
+end
+
+
+function toward_player(_ENV)
+	local v=player.pos-pos
+	return v:normalize()
+end
+
+function set_(key, fnOrV)
+	if type(fnOrV) == 'function' then
+		return function(self)
+			self[key]=fnOrV(self)
+		end
+	end
+
+	return function(self)
+		self[key]=fnOrV
+	end
+end
+
+function set_mv(fn)
+	return function(_ENV)
+		mv=fn(_ENV)
+	end
+end
+
+function add_mv(fn)
+	return function(_ENV)
+		mv+=fn(_ENV)
+	end
+end
+
+function untilMapCollision_(_ENV)
+	repeat
+		yield()
+	until colided
+end
+	
+
 
 knight=actor:new{
 	NAME='knight',
@@ -405,18 +492,15 @@ knight=actor:new{
 
 	create=function(...)
 		local tbl=actor.create(...)
-		tbl.update_freq=rnd(90)
 		tbl.speed=0.25+rnd(0.5)
 		return tbl
 	end,
 
-	update_mv=function(_ENV)
-		if (framectr%flr(update_freq)==0) then
-			local v=player.pos-pos
-			v=v:normalize()
-			mv:add(v())
-		end
-	end,
+	behavior={
+		set_('speed', function () return 0.25+rnd(0.5) end),
+		wait_(function() return rnd(90) end),
+		add_mv(toward_player),
+	}
 }
 
 fool_knight=actor:new{
@@ -424,17 +508,26 @@ fool_knight=actor:new{
 	tileId=49,
 	speed=1,
 
-	create=function(...)
-		local tbl=actor.create(...)
-		tbl.update_freq=rnd(12)
-		return tbl
-	end,
+	behavior={
+		add_mv(random_vec),
+		wait_(5+rnd(5)),
+	},
+}
 
-	update_mv=function(_ENV)
-		if (framectr%flr(update_freq)==0) then
-			mv:add(vec2(rnd(2)-1, rnd(2)-1)())
-		end
-	end
+slime=actor:new{
+	NAME='slime',
+	tileId=50,
+
+	behavior={
+		set_('speed', function () return 0.2+rnd(0.8) end),
+		set_('mv', vec2(1,0)),
+		wait_(30),
+		set_('mv', vec2(-1,0)),
+		wait_(30),
+		set_('mv', toward_player),
+		untilMapCollision_,
+		wait_(60),
+	},
 }
 
 player=class:new{
@@ -474,8 +567,7 @@ player=class:new{
 		end
 		
 		mv,colided=process_map_colision(
-			pos+mv,
-			mask,
+			mask:offset(pos()),
 			mv
 		)
 
@@ -559,29 +651,31 @@ points=class:new({
 	
 })
 
-hud=class:new({
-	baseY=0,
-	col=7,
-	data={},
-	
-	set=function(_ENV, key, val)
-		if not val then
-			del(data, key)
-		else
-			data[key]=tostr(val)
-		end
-	end,
+if DEBUG then
+	hud=class:new({
+		baseY=0,
+		col=7,
+		data={},
+		
+		set=function(_ENV, key, val)
+			if not val then
+				del(data, key)
+			else
+				data[key]=tostr(val)
+			end
+		end,
 
-	draw=function(_ENV, x, y)
-		rectfill(x,y+baseY,x+128,y+baseY+6,1)
-		local str=""
-		for i,j in pairs(data) do
-			str=str..
-				i..': '..j..' '
-		end
-		print(str,x,y,col)
-	end,
-})
+		draw=function(_ENV, x, y)
+			rectfill(x,y+baseY,x+128,y+baseY+6,1)
+			local str=""
+			for i,j in pairs(data) do
+				str=str..
+					i..': '..j..' '
+			end
+			print(str,x,y,col)
+		end,
+	})
+end
 
 -->8
 -- map stuff
@@ -596,29 +690,34 @@ function is_wall(x, y)
 
 	if DEBUG then
 		-- debugging code
-		points:add(x, y, 
-			colided and 8 or 9,
-			colided and 30 or 1,
-			colided and 2 or 1
-		)
+		if colided then
+			points:add(x, y, 
+				colided and 8 or 9,
+				colided and 30 or 1,
+				colided and 2 or 1
+			)
+		end
 	end
 	
 	return colided
 end
 
-function process_map_colision(pos,mask,mv)
+-- pos=position to check.
+-- TODO:
+-- return 'H' / 'V' / 'C'
+function process_map_colision(pos,mv)
 	-- sprite corners:
 	-- c1 c2
 	-- c3 c4
 
 	local colided=false
 
-	local m_x1, m_y1, m_x2, m_y2=mask()
+	local m_x1, m_y1, m_x2, m_y2=pos()
 
-	local c1 = is_wall(pos.x+m_x1, pos.y+m_y1)
-	local c2 = is_wall(pos.x+m_x1, pos.y+m_y2)
-	local c3 = is_wall(pos.x+m_x2, pos.y+m_y1)
-	local c4 = is_wall(pos.x+m_x2, pos.y+m_y2)
+	local c1 = is_wall(m_x1, m_y1)
+	local c2 = is_wall(m_x1, m_y2)
+	local c3 = is_wall(m_x2, m_y1)
+	local c4 = is_wall(m_x2, m_y2)
 
 	if (c1 and c3 or c2 and c4) then
 		-- horizonal
