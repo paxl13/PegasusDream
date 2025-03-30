@@ -5,74 +5,90 @@ __lua__
 
 -- CONSTANTS
 --[[const]] DEBUG=true
+--[[const]] MASK=false
+--[[const]] FPS=60
+--[[const]] t_zone=false
 
-function _init()
-	d('---INIT----')
+if DEBUG then
+	norm_per_frame=0
+end
 
-	framectr=0
+if not t_zone then
+	function _init()
+		d('---INIT----')
 
-	actors=seq({},'actors')
+		framectr=0
 
-	for _=1,20 do
-		local kind = rnd({slime, knight, fool_knight})
-		add(actors, 
-			kind(
+		actors=seq({},'actors')
+
+		for _=1,20 do
+			local kind = rnd({slime, knight, fool_knight, p_knight})
+			add(actors, kind(
 				24+rnd(128-48),
 				24+rnd(128-48)
-			)
-		)
-	end
-	
-	add(actors, slime(48,48))
-
-	sfx(0)
-end
-
-function _update60()
-	framectr+=1
-
-	points:update()
-	io:update()
-	player:update()
-	mapper:update()
-
-	foreach(actors, invoke('update'))
-
-	if DEBUG then
-		hud:set('#mv', format2(#player.mv))
-		hud:set('#fps', stat(7))
-		hud:set('cam', mapper.campos)
-	end
-end
-
-
-function _draw()
-	cls(11)
-
-	mapper:draw()
-	player:draw()
-
-	foreach(actors, invoke('draw'))
-	
-	
-	if DEBUG then
-		local displayOverlay = function (a)
-			color(9)
-			local r = a.mask:offset(a.pos())
-			rect(r())
-			color(7)
-			local pos=a.pos+vec2(3,3);
-			local zz=pos+(a.mv*20);
-			line(pos.x, pos.y, zz.x, zz.y)
+			))
 		end
+		
+		-- add(actors, slime(48,48))
+		-- add(actors, p_knight(48,48))
+	
+		sfx(0)
+	end
+	
+	function _update60()
+		framectr+=1
+	
+		points:update()
+		io:update()
+		player:update()
+		mapper:update()
+	
+		foreach(actors, invoke('update'))
+	
+		if DEBUG then
+			hud:set('#mv', format2(#player.mv))
 
-		points:draw()
-		hud:draw(mapper.campos())
-		foreach(actors, displayOverlay)
-		displayOverlay(player)
+			-- pad string
+			local cpuDisp = tostr(flr(stat(1)*100))
+			if (#cpuDisp == 1) cpuDisp=' '..cpuDisp
+
+			hud:set('norm', norm_per_frame)
+			hud:set('cpu', cpuDisp)
+
+			-- clean debug states
+			norm_per_frame=0
+		end
+	end
+	
+	function _draw()
+		cls(11)
+	
+		mapper:draw()
+		player:draw()
+	
+		foreach(actors, invoke('draw'))
+		
+		
+		if DEBUG then
+			local displayOverlay = function (a)
+				if MASK then
+					color(9)
+					local r = a.mask:offset(a.pos())
+					rect(r())
+					color(7)
+				end
+				local pos=a.pos+vec2(3,3);
+				local zz=pos+(a.mv*20);
+				line(pos.x, pos.y, zz.x, zz.y)
+			end
+	
+			points:draw()
+			hud:draw(mapper.campos())
+			foreach(actors, displayOverlay)
+			displayOverlay(player)
+		end
 	end
 end
-
 -->8
 -- support class/functions
 -- 
@@ -102,10 +118,16 @@ function id(val)
 end
 
 
+
 function format2(n)
-	return
+	local s =
 		flr(n) .. "." ..
 		flr(n%1 * 10^2)
+	
+	if #s != 4 then
+		s=s..'0'
+	end
+	return s
 end
 
 function i2(s)
@@ -190,10 +212,13 @@ seq=class:new{
 }
 
 vec2=class:new{
+	NAME='vec2',
 	x=0,
 	y=0,
 
 	normalize=function(self)
+		if DEBUG then norm_per_frame+=1 end
+
 		local len=#self;
 
 		if (len<0.1) then
@@ -214,9 +239,15 @@ vec2=class:new{
 	end,
 	
 	create=function(self, x, y)
+		local vv = {x=x, y=y}
+
+		if (type(x)=='table' and x.NAME=='vec2') then
+			vv={x=x.x, y=x.y}
+		end
+
 		return class.new(
 			self, 
-			{x=x, y=y},
+			vv,
 			{
 				__tostring=function(v)
 					return 
@@ -265,6 +296,10 @@ vec2=class:new{
 						
 				__call=function(v)
 					return v.x,v.y
+				end,
+				
+				__eq=function(v1,v2) 
+					return v1.x == v2.x and v1.y == v2.y
 				end,
 			})
 	end,
@@ -394,28 +429,41 @@ actor=class:new{
 			body=sprite(pos, self.tileId),
 		})
 
+		d(self)
+		if (self.behavior) then
+			tbl.update_cor = cocreate(self.behavior)
+		end
+
 		return tbl
 	end,
+
+	-- if not behavior_cor or costatus(behavior_cor) == 'dead' then
+	-- 	if not behavior_step or behavior_step >= #behavior then
+	-- 		behavior_step = 0
+	-- 	end
+	-- 	behavior_step+=1
+	-- 	behavior_cor=cocreate(behavior[behavior_step])
+	-- end
+	-- assert(coresume(behavior_cor, _ENV))
 
 	update=function(_ENV)
 		if process_mv then
 			_ENV:process_mv()
 		else
-			if not behavior_cor or costatus(behavior_cor) == 'dead' then
-				if not behavior_step or behavior_step >= #behavior then
-					behavior_step = 0
-				end
-				behavior_step+=1
-				behavior_cor=cocreate(behavior[behavior_step])
+			if costatus(update_cor) == 'dead' then
+				update_cor=cocreate(behavior)
 			end
-
-			assert(coresume(behavior_cor, _ENV))
+			assert(coresume(update_cor, _ENV))
 		end
 
+		-- optimization to debug!
+		-- if mv:sq_len() > (speed*speed) then
+		-- end
 
---		if mv:sq_len() > (speed*speed) then
-			mv=mv:normalize() * speed
---		end
+		if(mv != old_mv or speed != old_speed) then
+			mv=mv:normalize()*speed
+		end
+
 
 		mv,colided=process_map_colision(
 			mask:offset(pos()),
@@ -423,6 +471,9 @@ actor=class:new{
 		)
 
 		pos:add(mv())
+
+		old_mv=vec2(mv)
+		old_speed=speed
 	end,
 
 	draw=function(_ENV)
@@ -434,12 +485,16 @@ actor=class:new{
 
 -- Behaviors coroutines
 
+function wait_internal(v)
+	for _=1,v do
+		yield()
+	end
+end
+
 function wait_(fnOrV)
 	return function(self)
 		local v=type(fnOrV)=='function' and fnOrV(self) or fnOrV
-		for _=1,v do
-			yield()
-		end
+		wait_internal(v)
 	end
 end
 
@@ -482,6 +537,17 @@ function untilMapCollision_(_ENV)
 		yield()
 	until colided
 end
+
+function pipe_(f_list)
+	local outArgs={}
+
+	return function(self)
+		for fn in all(f_list)
+		do
+			outArgs=pack(fn(self, unpack(outArgs)))
+		end
+	end
+end
 	
 
 
@@ -496,7 +562,7 @@ knight=actor:new{
 		return tbl
 	end,
 
-	behavior={
+	behavior=pipe_{
 		set_('speed', function () return 0.25+rnd(0.5) end),
 		wait_(function() return rnd(90) end),
 		add_mv(toward_player),
@@ -508,26 +574,63 @@ fool_knight=actor:new{
 	tileId=49,
 	speed=1,
 
-	behavior={
+	behavior=pipe_{
 		add_mv(random_vec),
 		wait_(5+rnd(5)),
 	},
 }
 
+function moveToward(x,y,t)
+	return function(_ENV)
+		mv=vec2(x,y)
+		wait_internal(t)
+	end
+end
+
 slime=actor:new{
 	NAME='slime',
 	tileId=50,
 
-	behavior={
-		set_('speed', function () return 0.2+rnd(0.8) end),
-		set_('mv', vec2(1,0)),
-		wait_(30),
-		set_('mv', vec2(-1,0)),
-		wait_(30),
+	behavior=pipe_({
+		set_('speed', function() return 0.2+rnd(0.8) end),
+		moveToward(1,0,0.5*FPS),
+		moveToward(0,-1,0.5*FPS),
+		moveToward(-1,0,0.5*FPS),
+		moveToward(0,1,0.5*FPS),
+
 		set_('mv', toward_player),
 		untilMapCollision_,
-		wait_(60),
-	},
+		wait_(1 * FPS),
+	}),
+}
+
+function trackPlayer(n)
+	return function(self)
+		local nbr_f=n
+		repeat
+			self.mv=toward_player(self)
+			nbr_f-=1
+			yield()
+		until (nbr_f==0)
+	end
+end
+
+p_knight=actor:new{
+	NAME='Pegasus_Knight',
+	tileId=51,
+
+	behavior=pipe_({
+		set_('speed', 0.2),
+		trackPlayer(5*FPS, 0.2),
+
+		set_('mv', vec2(0,0)),
+		wait_(3*FPS),
+		set_('speed', 3),
+		set_('mv', toward_player),
+		untilMapCollision_,
+		set_('speed', 1),
+		wait_(1*FPS)
+	}),
 }
 
 player=class:new{
@@ -545,8 +648,7 @@ player=class:new{
 		body=sprite(pos, 16)
 	end,
 	
-	update=function (self)
-		local _ENV=self
+	update=function (_ENV)
 		-- pegasus logic
 		if io.x then
 			in_boost=true
@@ -656,11 +758,17 @@ if DEBUG then
 		baseY=0,
 		col=7,
 		data={},
+		order={},
 		
 		set=function(_ENV, key, val)
 			if not val then
 				del(data, key)
+				del(order, key)
 			else
+				if not data[key] then
+					add(order, key)
+				end
+
 				data[key]=tostr(val)
 			end
 		end,
@@ -668,7 +776,8 @@ if DEBUG then
 		draw=function(_ENV, x, y)
 			rectfill(x,y+baseY,x+128,y+baseY+6,1)
 			local str=""
-			for i,j in pairs(data) do
+			for i in all(order) do
+				local j=data[i]
 				str=str..
 					i..': '..j..' '
 			end
@@ -806,6 +915,41 @@ mapper=class:new{
 	end
 }
 
+cor=cocreate(function(a)
+	local b=''
+	for j=1,5 do
+		print(a..' '..b..' '..tostr(j))
+		a,b=yield(j, 10+j)
+		b=b or 'undefined'
+	end
+	return 99,1
+end)
+
+
+
+-->8
+-- testing zone
+
+if t_zone then
+	cls()
+	
+	function resume(thr, ...)
+		local error,rv= coresume(thr, ...)
+		assert(error, rv)
+		return rv
+	end
+	
+	d(cor, costatus(cor))
+	print(resume(cor, '1st', 'hello'))
+	print(resume(cor, '2nd', 'world'))
+	print(resume(cor, '3rd'))
+	print(resume(cor, '4th'))
+	print(resume(cor, '5th'))
+	print(resume(cor, '5th'))
+	d(cor, costatus(cor))
+	 
+	stop('eh')
+end
 __gfx__
 00000000119999111199991111999911119999111199991111999911000000000000000000000000000000000000000011110000001111100000011100000000
 66666666198888211988882119888821198888211988882119888821000000000000000000000000000000000000000011100777700111007777001100000000
@@ -831,14 +975,14 @@ __gfx__
 11080111110801111107011100000000b7b3bb33b733bb3300000000000000000000000000000000097777900977779011109777777790110000000000000000
 111011111110111111101111000000003bb3b33b3bb3b33700000000000000000000000000000000099999900999999011109999999990110000000000000000
 1111111111111111111111110000000033b3b3b333b3b37b00000000000000000000000000000000099999900999999011109999999990110000000000000000
-111111111111111100000000000000007b333bb37b333bb300000000000000000000000000000000090000900999999011109999999990110000000000000000
-1888888119999991000000000000000037b33bb337b33bb300000000000000000000000000000000090940900999999011109999999990110000000000000000
-888888889999999900000000000000003b7b3b333bbb3b3300000000000000000000000000000000040940400499994011104999999940110000000000000000
-888ffff8999ffff9000000000000000033bb333733bb333700000000000000000000000000000000040940400444444011104444444440110000000000000000
-88f0ff0899f2ff290000000000000000b3bb337b3b3b337300000000000000000000000000000000040940400444444011104444444440110000000000000000
-18fffff119fffff10000000000000000bb3b3bb33bb33bb300000000000000000000000000000000040940400444444011104444444440110000000000000000
-11333311113333110000000000000000bb3b3b3b3bb33bb300000000000000000000000000000000550940555544445511155444444450110000000000000000
-117117111171171100000000000000003b33333bb3b33b3300000000000000000000000000000000150940511555555111115555555551110000000000000000
+111111111111111111111111111111117b333bb37b333bb300000000000000000000000000000000090000900999999011109999999990110000000000000000
+1888888119999991155555511eeeeee137b33bb337b33bb300000000000000000000000000000000090940900999999011109999999990110000000000000000
+888888889999999955555555eeeeeeee3b7b3b333bbb3b3300000000000000000000000000000000040940400499994011104999999940110000000000000000
+888ffff8999ffff9555ffff5eeeffffe33bb333733bb333700000000000000000000000000000000040940400444444011104444444440110000000000000000
+88f0ff0899f2ff2955f2ff25eef2ff2eb3bb337b3b3b337300000000000000000000000000000000040940400444444011104444444440110000000000000000
+18fffff119fffff115fffff11efffff1bb3b3bb33bb33bb300000000000000000000000000000000040940400444444011104444444440110000000000000000
+11333311113333111133331111333311bb3b3b3b3bb33bb300000000000000000000000000000000550940555544445511155444444450110000000000000000
+117117111171171111711711117117113b33333bb3b33b3300000000000000000000000000000000150940511555555111115555555551110000000000000000
 11111111cccccccc000000000000044477777777777777777a99999995a9990077777777777777777a99999995a9900011111111111111111111111111111111
 11111111c6cc6ccc0aa9999999999aa4aaaaaaaaaaaaaaaa7a99999995a99900aaaaaaaaaaaaaaa77a99999995a9000011133111111331111113311111111111
 11111111616616cc0a999999999999a09aa9999999aa99997a999999959a99009aa99999a99990a77a99999995a0009911133111113a73111113311111133111
