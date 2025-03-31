@@ -11,6 +11,7 @@ __lua__
 
 if DEBUG then
 	norm_per_frame=0
+	norm_arr={}
 end
 
 if not t_zone then
@@ -21,13 +22,10 @@ if not t_zone then
 
 		actors=seq({},'actors')
 
-		for _=1,20 do
-			local kind = rnd({slime, knight, fool_knight, p_knight})
-			add(actors, kind(
-				24+rnd(128-48),
-				24+rnd(128-48)
-			))
-		end
+		-- for _=1,20 do
+		-- 	local kind = rnd({slime, knight, fool_knight, p_knight})
+		-- 	add(actors, kind(getRandomTile()))
+		-- end
 		
 		-- add(actors, slime(48,48))
 		-- add(actors, p_knight(48,48))
@@ -52,7 +50,7 @@ if not t_zone then
 			local cpuDisp = tostr(flr(stat(1)*100))
 			if (#cpuDisp == 1) cpuDisp=' '..cpuDisp
 
-			hud:set('norm', norm_per_frame)
+			hud:set('norm', norm_per_frame) 
 			hud:set('cpu', cpuDisp)
 
 			-- clean debug states
@@ -134,7 +132,7 @@ function i2(s)
 	local l=split(s, '\n')
 	local rv=''
 	for i=1,#l-1 do
-		rv..=l[i]..'\n		'
+		rv..=l[i]..'\n  '
 	end
 	return rv..l[#l]
 end
@@ -427,24 +425,11 @@ actor=class:new{
 		local tbl=class.new(self, {
 			pos=pos,
 			body=sprite(pos, self.tileId),
+			update_cor=self.behavior and cocreate(self.behavior) or nil
 		})
-
-		d(self)
-		if (self.behavior) then
-			tbl.update_cor = cocreate(self.behavior)
-		end
 
 		return tbl
 	end,
-
-	-- if not behavior_cor or costatus(behavior_cor) == 'dead' then
-	-- 	if not behavior_step or behavior_step >= #behavior then
-	-- 		behavior_step = 0
-	-- 	end
-	-- 	behavior_step+=1
-	-- 	behavior_cor=cocreate(behavior[behavior_step])
-	-- end
-	-- assert(coresume(behavior_cor, _ENV))
 
 	update=function(_ENV)
 		if process_mv then
@@ -640,34 +625,98 @@ player=class:new{
 		pos=vec2(64,64)
 		mv=vec2(0,0)
 		mask=rect2(2,2,5,5)
+		direction=vec2(0,0)
 
 		colided=false
-		in_boost=false
-		timeload=0
 
 		body=sprite(pos, 16)
+
+		update_cor=cocreate(behavior)
+		status='normal'
+	end,
+
+	sword_anim={
+		{54, vec2(8,0),false,false},
+		{56, vec2(4,-4),false,false},
+		{57, vec2(0,-8),false,false},
+		{56, vec2(-4,-4),true,false},
+		{54, vec2(-8,0),true,false},
+		{56, vec2(-4,4),true,true},
+		{57, vec2(0,8),false,true},
+		{56, vec2(4,4),false,true},
+	},
+
+	behavior=function (_ENV)
+		boostFrames=0
+		if io.x then
+			status='charging'
+
+			repeat
+				boostFrames+=1
+				yield()
+				if (boostFrames >= 16) then
+					mv=vec2(0,0)
+				end
+			until (not io.x or boostFrames > 60)
+			if boostFrames < 16 then
+				status = 'attack'
+				atk_fr = 0
+			elseif boostFrames > 60 then
+				status = 'boost'
+			else
+				status = 'normal'
+			end
+
+			boostFrames=0
+		end
+		
+		-- state machine based on 'status'
+		if status == 'normal' then
+			mv+=io.norm
+
+			if(mv:sq_len()>1) then 
+				mv=mv:normalize()*1
+			end
+
+			if io.nodir then mv=mv*0.95 end
+		end
+
+		if status == 'boost' then
+			repeat
+				mv=(mv+(io.norm*0.15)):normalize()*3
+				yield()
+			until colided
+
+			status = 'normal'
+		end
+
+		if status == 'attack' then
+
+			local angle = atan2(mv.x, mv.y)
+			local initial_fr = flr(angle*#sword_anim)-(#sword_anim\4)
+
+			atk_fr = initial_fr;
+			repeat
+				mv+=io.norm*0.15
+
+				if(mv:sq_len()>0.5*0.5) then 
+					mv=mv:normalize()*0.5
+				end
+
+				atk_fr+=0.3
+				yield()
+			until atk_fr >= initial_fr+(#sword_anim\2)+0.3
+			status = 'normal'
+		end
+
 	end,
 	
 	update=function (_ENV)
-		-- pegasus logic
-		if io.x then
-			in_boost=true
-
-			if(timeload<3) then
-				timeload=timeload+0.2
-			end
-
-			mv=vec2(0,0)
-		elseif in_boost then
-			mv=(mv+(io.norm*0.15)):normalize()*3
-			if (colided) in_boost=false
-			timeload=2
-		else
-			mv+=io.norm
-			if(mv:sq_len()>1) mv=mv:normalize()*1
-			if(io.nodir) mv=mv*0.95
+		if costatus(update_cor) == 'dead' then
+			update_cor=cocreate(behavior)
 		end
-		
+		assert(coresume(update_cor, _ENV))
+
 		mv,colided=process_map_colision(
 			mask:offset(pos()),
 			mv
@@ -677,48 +726,80 @@ player=class:new{
 	end,
 
 	drawArrow=function(_ENV)
-		local x,y=pos()
-		local mult=(timeload*20\5)/4
-		local sx=8*mult
+		if (boostFrames>16) then
+			local x,y=pos()
+			local mult=1+boostFrames/20
+			local sx=8*mult
+			d(mult)
 
-		local acol={
-			[1]=10,
-			[2]=9,
-			[3]=8,
-		}
-		local col=acol[flr(mult)]
-		
-		pal(9, col)
-		if (io.vec.y!=0) then
-			sspr(
-				64,8,
-				7,7,
-				(x+4)-(sx/2),(y+4)-(sx/2),
-				sx,sx,
-				false,io.vec.y>0		
-			)
-		else
-			sspr(
-				71,8,
-				7,7,
-				(x+4)-(sx/2),(y+4)-(sx/2),
-				sx,sx,
-				io.vec.x>0,false		
-			)
+			local acol={
+				[1]=10,
+				[2]=9,
+				[3]=8,
+			}
+			local col=acol[flr(mult)]
+			
+			pal(9, col)
+			if (io.vec.y!=0) then
+				sspr(
+					64,8,
+					7,7,
+					(x+4)-(sx/2),(y+4)-(sx/2),
+					sx,sx,
+					false,io.vec.y>0		
+				)
+			else
+				sspr(
+					71,8,
+					7,7,
+					(x+4)-(sx/2),(y+4)-(sx/2),
+					sx,sx,
+					io.vec.x>0,false		
+				)
+			end
+			pal(9,9)		
 		end
-		pal(9,9)		
+	end,
+
+
+	drawBoostSword=function(_ENV)
+		local angle = atan2(mv.x, mv.y)
+		_ENV:drawSword(flr(angle*#sword_anim))
+	end,
+
+	drawSword=function(_ENV, frame)
+		local s_id,offset,flip_x,flip_y=
+			unpack(sword_anim[flr(frame)%#sword_anim+1]);
+		s_pos=pos+offset
+		sspr(
+			(s_id % 16) * 8, (s_id \ 16) * 8, 
+			8,8,
+			s_pos.x, s_pos.y,
+			8,8,
+			flip_x,
+			flip_y
+		)
 	end,
 
 	draw=function (_ENV)
 		-- handle pegasus arrow
-		if in_boost then
+		if status == 'charging' then
 			_ENV:drawArrow()
 		end
 
-		body:draw();
-		-- sound effect
+		if status == 'attack' then
+			_ENV:drawSword(atk_fr)
+		end
 
-		if (colided) sfx(0)
+		if status == 'boost' then
+			_ENV:drawBoostSword()
+		end
+		
+		body:draw();
+
+		if (colided) then
+			sfx(0)
+		end
 	end,
 }
 
@@ -876,6 +957,19 @@ function eachtile(campos, fn)
 	end
 end
 
+function getRandomTile()
+	local is_valid=false
+	local i,j
+	repeat
+		i = flr(rnd(16))
+		j = flr(rnd(16))
+
+		local t=mget(i,j)
+		is_valid = not fget(t,0)
+	until is_valid
+	return i*8,j*8
+end
+
 mapper=class:new{
 	initialize=function(_ENV)
 		-- setup dark blue as transparency
@@ -915,22 +1009,20 @@ mapper=class:new{
 	end
 }
 
-cor=cocreate(function(a)
-	local b=''
-	for j=1,5 do
-		print(a..' '..b..' '..tostr(j))
-		a,b=yield(j, 10+j)
-		b=b or 'undefined'
-	end
-	return 99,1
-end)
-
-
-
 -->8
 -- testing zone
 
 if t_zone then
+	cor=cocreate(function(a)
+		local b=''
+		for j=1,5 do
+			print(a..' '..b..' '..tostr(j))
+			a,b=yield(j, 10+j)
+			b=b or 'undefined'
+		end
+		return 99,1
+	end)
+
 	cls()
 	
 	function resume(thr, ...)
@@ -947,6 +1039,40 @@ if t_zone then
 	print(resume(cor, '5th'))
 	print(resume(cor, '5th'))
 	d(cor, costatus(cor))
+
+  data=split('54, 8,0,false,false,54, 8,-2,false,false, 55, 4,-4,false,false, 56, 4,-4,false,false, 57, 0,-8,false,false, 57, 0,-8,false,false, 56, -4,-4,true,false, 55, -4,-4,true,false, 54, -8,-2,true,false,54, -8,0,true,false')
+  -- data=split('54, 8,0,false,false,|,54, 8,-2,false,false, 55, 4,-4,false,false, 56, 4,-4,false,false, 57, 0,-8,false,false, 57, 0,-8,false,false, 56, -4,-4,true,false, 55, -4,-4,true,false, 54, -8,-2,true,false,54, -8,0,true,false')
+
+	function subsplit(s, n)
+		local rv=seq{}
+		for i=1,(#s\n)-1 do
+			local subs=seq{}
+			for j=1,n do
+				add(subs, s[i*n+j])
+			end
+			add(rv, subs)
+		end
+		return rv
+	end
+
+	-- function subsplit(s)
+	-- 	local rv=seq{}
+	-- 	local i = 1
+	-- 	repeat
+	-- 		local subs=seq{}
+	-- 		repeat
+	-- 			local item = s[i]
+	-- 			add(subs, item)
+	-- 			i+=1
+	-- 		until item != '|'
+	-- 		add(rv, subs)
+	-- 	until i == #s
+	-- 	return rv
+	-- end
+
+	animtable=subsplit(data, 5)
+
+	d(animtable)
 	 
 	stop('eh')
 end
@@ -967,22 +1093,22 @@ __gfx__
 02ccccc00cc222200ccc2cc00c222cc00cccccc00cccc2200cc22cc00c222cc01109011110901111097777900977779011104444440111044444401100000000
 10cccc0110cccc0110cc2201102ccc0110cccc0110cccc0110c22c01102ccc011100011111001111099999900999999011155444455111554444501100000000
 11000011110000011100001111000011110000111100001111000011110000111111111111111111099999900999999011115555551111155555511100000000
-10010011100100111001001100000000b333bb33b33b337b00000000000000000000000000000000090000900900009011110000000001110000000000000000
-08808801088077010770770100000000bb3bb333b3bb37b300000000000000000000000000000000007777000077770011100777777700110000000000000000
-0888e80108e8770107777701000000003bb3337333b3b7b30000000000000000000000000000000007aaaa7007aaaa7011107aaaaaaa70110000000000000000
-0888880108887701077777010000000073b337b333b3bb330000000000000000000000000000000007aa7a7007aa7a7011107aa7a7aa70110000000000000000
-10888011108870111077701100000000b733bb3b7333bb330000000000000000000000000000000007aaaa7007aaaa7011107aaaaaaa70110000000000000000
-11080111110801111107011100000000b7b3bb33b733bb3300000000000000000000000000000000097777900977779011109777777790110000000000000000
-111011111110111111101111000000003bb3b33b3bb3b33700000000000000000000000000000000099999900999999011109999999990110000000000000000
-1111111111111111111111110000000033b3b3b333b3b37b00000000000000000000000000000000099999900999999011109999999990110000000000000000
-111111111111111111111111111111117b333bb37b333bb300000000000000000000000000000000090000900999999011109999999990110000000000000000
-1888888119999991155555511eeeeee137b33bb337b33bb300000000000000000000000000000000090940900999999011109999999990110000000000000000
-888888889999999955555555eeeeeeee3b7b3b333bbb3b3300000000000000000000000000000000040940400499994011104999999940110000000000000000
-888ffff8999ffff9555ffff5eeeffffe33bb333733bb333700000000000000000000000000000000040940400444444011104444444440110000000000000000
-88f0ff0899f2ff2955f2ff25eef2ff2eb3bb337b3b3b337300000000000000000000000000000000040940400444444011104444444440110000000000000000
-18fffff119fffff115fffff11efffff1bb3b3bb33bb33bb300000000000000000000000000000000040940400444444011104444444440110000000000000000
-11333311113333111133331111333311bb3b3b3b3bb33bb300000000000000000000000000000000550940555544445511155444444450110000000000000000
-117117111171171111711711117117113b33333bb3b33b3300000000000000000000000000000000150940511555555111115555555551110000000000000000
+10010011100100111001001100000000b333bb33b33b337b00000000000000001111111100000000090000900900009011110000000001110000000000000000
+08808801088077010770770100000000bb3bb333b3bb37b300000000000000001111000100000000007777000077770011100777777700110000000000000000
+0888e80108e8770107777701000000003bb3337333b3b7b300000000000000001110aa010000000007aaaa7007aaaa7011107aaaaaaa70110000000000000000
+0888880108887701077777010000000073b337b333b3bb330000000000000000110a99010000000007aa7a7007aa7a7011107aa7a7aa70110000000000000000
+10888011108870111077701100000000b733bb3b7333bb33000000000000000010a990110000000007aaaa7007aaaa7011107aaaaaaa70110000000000000000
+11080111110801111107011100000000b7b3bb33b733bb3300000000000000000099011100000000097777900977779011109777777790110000000000000000
+111011111110111111101111000000003bb3b33b3bb3b33700000000000000005500111100000000099999900999999011109999999990110000000000000000
+1111111111111111111111110000000033b3b3b333b3b37b00000000000000005501111100000000099999900999999011109999999990110000000000000000
+111111111111111111111111111111117b333bb37b333bb31111111111111111111100001110a011090000900999999011109999999990110000000000000000
+1888888119999991155555511eeeeee137b33bb337b33bb301111111111100011110aaa0110a9901090940900999999011109999999990110000000000000000
+888888889999999955555555eeeeeeee3b7b3b333bbb3b330000000110009990110a9990110a9901040940400499994011104999999940110000000000000000
+888ffff8999ffff9555ffff5eeeffffe33bb333733bb333750aaaaa00999999910a99990110a9901040940400444444011104444444440110000000000000000
+88f0ff0899f2ff2955f2ff25eef2ff2eb3bb337b3b3b33735099999a999999900a999901110a9901040940400444444011104444444440110000000000000000
+18fffff119fffff115fffff11efffff1bb3b3bb33bb33bb3509999909999000100999011110a9901040940400444444011104444444440110000000000000000
+11333311113333111133331111333311bb3b3b3b3bb33bb300000001900011115509011111000001550940555544445511155444444450110000000000000000
+117117111171171111711711117117113b33333bb3b33b3301111111011111115500111110055500150940511555555111115555555551110000000000000000
 11111111cccccccc000000000000044477777777777777777a99999995a9990077777777777777777a99999995a9900011111111111111111111111111111111
 11111111c6cc6ccc0aa9999999999aa4aaaaaaaaaaaaaaaa7a99999995a99900aaaaaaaaaaaaaaa77a99999995a9000011133111111331111113311111111111
 11111111616616cc0a999999999999a09aa9999999aa99997a999999959a99009aa99999a99990a77a99999995a0009911133111113a73111113311111133111
