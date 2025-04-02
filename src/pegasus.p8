@@ -6,8 +6,10 @@ __lua__
 -- CONSTANTS
 --[[const]] DEBUG=true
 --[[const]] MASK=false
+--[[const]] MV=false
 --[[const]] FPS=60
 --[[const]] t_zone=false
+--[[const]] no_enemies=false
 
 if DEBUG then
 	norm_per_frame=0
@@ -22,64 +24,88 @@ if not t_zone then
 
 		actors=seq({},'actors')
 
-		-- for _=1,20 do
-		-- 	local kind = rnd({slime, knight, fool_knight, p_knight})
-		-- 	add(actors, kind(getRandomTile()))
-		-- end
-		
-		-- add(actors, slime(48,48))
-		-- add(actors, p_knight(48,48))
+		if not no_enemies then
+			for _=1,20 do
+				local kind = rnd({slime, knight, fool_knight, p_knight})
+				add(actors, kind(getRandomTile()))
+			end
+
+			add(actors, slime(48,48))
+			add(actors, p_knight(48,48))
+		end
+
+		add(actors, knight(48,48))
 	
 		sfx(0)
 	end
+
+	-- ProcessInput
+	-- AI
+	-- Physics
 	
 	function _update60()
 		framectr+=1
+
+		mapper:updateAnim()
 	
-		points:update()
 		io:update()
+
+		player:input()
+		foreach(actors, invoke('input'))
 		player:update()
-		mapper:update()
-	
 		foreach(actors, invoke('update'))
-	
+
+		mapper:updateCam()
+
 		if DEBUG then
-			hud:set('#mv', format2(#player.mv))
+			points:update()
 
-			-- pad string
-			local cpuDisp = tostr(flr(stat(1)*100))
-			if (#cpuDisp == 1) cpuDisp=' '..cpuDisp
+			if framectr % 10 == 1 then
+				hud:set('#mv', format2(#player.mv))
 
-			hud:set('norm', norm_per_frame) 
-			hud:set('cpu', cpuDisp)
+				-- pad string
+				local cpuDisp = tostr(flr(stat(1)*100))
+				if (#cpuDisp == 1) cpuDisp=' '..cpuDisp
+
+				hud:set('n', norm_per_frame) 
+				hud:set('c%', cpuDisp)
+				hud:set('#a', #actors)
+			end
 
 			-- clean debug states
 			norm_per_frame=0
 		end
 	end
-	
-	function _draw()
-		cls(11)
-	
-		mapper:draw()
-		player:draw()
-	
-		foreach(actors, invoke('draw'))
-		
-		
-		if DEBUG then
-			local displayOverlay = function (a)
-				if MASK then
-					color(9)
-					local r = a.mask:offset(a.pos())
-					rect(r())
-					color(7)
-				end
+
+	if DEBUG then
+		function displayOverlay(a)
+			-- display colision box
+			if MASK then
+				color(9)
+				local r = a.mask:offset(a.pos())
+				rect(r())
+				color(7)
+			end
+
+			if MV then
+				-- display mv
 				local pos=a.pos+vec2(3,3);
 				local zz=pos+(a.mv*20);
 				line(pos.x, pos.y, zz.x, zz.y)
 			end
+		end
+	end
 	
+
+	function _draw()
+		cls(11)
+	
+		mapper:draw()
+		foreach(actors, invoke('draw'))
+
+		player:draw()
+		
+		if DEBUG then
 			points:draw()
 			hud:draw(mapper.campos())
 			foreach(actors, displayOverlay)
@@ -319,8 +345,8 @@ rect2=class.new{
 			{ x1=x1,y1=y1,x2=x2,y2=y2 },
 			{
 				__tostring=function(_ENV)
-					return 'r<'..tostr(x1)..','..tostr(y1)..'\n'
-						 ..tostr(x2)..','..tostr(y2)..'>'
+					return 'r<'
+						..tostr(x1)..','..tostr(y1)..','..tostr(x2)..','..tostr(y2)..'>'
 				end,
 
 				__call=function(_ENV)
@@ -418,6 +444,8 @@ actor=class:new{
 	speed=0,
 	mask=rect2(0,0,7,7),
 	mv=vec2(0,0),
+	health=1,
+	was_hit=false,
 
 	create=function(self,x,y)
 		local pos=vec2(x,y)
@@ -431,7 +459,7 @@ actor=class:new{
 		return tbl
 	end,
 
-	update=function(_ENV)
+	input=function(_ENV)
 		if process_mv then
 			_ENV:process_mv()
 		else
@@ -441,25 +469,34 @@ actor=class:new{
 			assert(coresume(update_cor, _ENV))
 		end
 
-		-- optimization to debug!
-		-- if mv:sq_len() > (speed*speed) then
-		-- end
-
 		if(mv != old_mv or speed != old_speed) then
 			mv=mv:normalize()*speed
 		end
 
-
+		old_mv=vec2(mv)
+		old_speed=speed
+	end,
+	
+	update=function(_ENV)
 		mv,colided=process_map_colision(
 			mask:offset(pos()),
 			mv
 		)
 
 		pos:add(mv())
-
-		old_mv=vec2(mv)
-		old_speed=speed
 	end,
+
+	-- update=function(_ENV)
+	-- 	if process_mv then
+	-- 		_ENV:process_mv()
+	-- 	else
+	-- 		if costatus(update_cor) == 'dead' then
+	-- 			update_cor=cocreate(behavior)
+	-- 		end
+	-- 		assert(coresume(update_cor, _ENV))
+	-- 	end
+
+	-- end,
 
 	draw=function(_ENV)
 		body:draw()
@@ -686,13 +723,14 @@ player=class:new{
 				mv=(mv+(io.norm*0.15)):normalize()*3
 				yield()
 			until colided
+			foreach(actors, function (act) act.was_hit = false end)
 
 			status = 'normal'
 		end
 
 		if status == 'attack' then
-
-			local angle = atan2(mv.x, mv.y)
+			-- local angle = atan2(mv.x, mv.y)
+			local angle = atan2(io.vec())
 			local initial_fr = flr(angle*#sword_anim)-(#sword_anim\4)
 
 			atk_fr = initial_fr;
@@ -706,16 +744,54 @@ player=class:new{
 				atk_fr+=0.3
 				yield()
 			until atk_fr >= initial_fr+(#sword_anim\2)+0.3
+			foreach(actors, function (act) act.was_hit = false end)
 			status = 'normal'
 		end
 
 	end,
 	
-	update=function (_ENV)
+	input=function (_ENV)
 		if costatus(update_cor) == 'dead' then
 			update_cor=cocreate(behavior)
 		end
 		assert(coresume(update_cor, _ENV))
+	end,
+
+	update=function (_ENV)
+		function testRectIntersection(ra, rb)
+			local xa1, ya1, xa2, ya2=ra()
+			local xb1, yb1, xb2, yb2=rb()
+			
+			local insideY = 
+			  (ya1 > yb1 and ya1 < yb2) or
+				(ya2 > yb1 and ya2 < yb2)
+
+			local insideX = 
+			  (xa1 > xb1 and xa1 < xb2) or
+				(xa2 > xb1 and xa2 < xb2)
+
+			return insideX and insideY
+		end
+
+
+		if status == 'attack' or status == 'boost' then
+			sw_mask = _ENV:getSwordMask(atk_fr):offset(pos())
+			for act in all(actors) do
+				if not act.was_hit then
+					local has_hit = testRectIntersection(sw_mask, act.mask:offset(act.pos()))
+					if has_hit then
+						act.health -= 1
+						if act.health <= 0 then
+							del(actors, act)
+						else 
+							act.mv *= -1
+							act.mv:add((mv*2)())
+							act.was_hit=true;
+						end
+					end
+				end
+			end
+		end
 
 		mv,colided=process_map_colision(
 			mask:offset(pos()),
@@ -764,6 +840,7 @@ player=class:new{
 
 	drawBoostSword=function(_ENV)
 		local angle = atan2(mv.x, mv.y)
+		angle+=0.0625 -- 1/16
 		_ENV:drawSword(flr(angle*#sword_anim))
 	end,
 
@@ -778,6 +855,16 @@ player=class:new{
 			8,8,
 			flip_x,
 			flip_y
+		)
+	end,
+
+	getSwordMask=function(_ENV, frame)
+		local _,offset=
+			unpack(sword_anim[flr(frame)%#sword_anim+1]);
+		
+		return rect2(
+			offset.x, offset.y,
+			offset.x+8, offset.y+8
 		)
 	end,
 
@@ -803,36 +890,37 @@ player=class:new{
 	end,
 }
 
-points=class:new({
-	pt={},
+if DEBUG then
+	points=class:new({
+		pt={},
 
-	add=function(_ENV,x,y,c,l,r)
-		add(
+		add=function(_ENV,x,y,c,l,r)
+			add(
 			points.pt,
 			{x=x,y=y,c=c,l=l,r=r or 1}
-		)
-	end,
+			)
+		end,
 
-	update=function(_ENV)
-		for v in all(pt) do
-			v.l-=1
-			if(v.l<=0) then
-				del(pt, v)
+		update=function(_ENV)
+			for v in all(pt) do
+				v.l-=1
+				if(v.l<=0) then
+					del(pt, v)
+				end
 			end
-		end
-	end,
-	
-	draw=function(_ENV) 
-		foreach(pt, function(p)
-			if(p.r>1) then
-				circfill(p.x,p.y,p.r,p.c)
-			else
-				pset(p.x, p.y, p.c)
-			end
-		end)
-	end,
-	
-})
+		end,
+
+		draw=function(_ENV) 
+			foreach(pt, function(p)
+				if(p.r>1) then
+					circfill(p.x,p.y,p.r,p.c)
+				else
+					pset(p.x, p.y, p.c)
+				end
+			end)
+		end,
+	})
+end
 
 if DEBUG then
 	hud=class:new({
@@ -980,7 +1068,7 @@ mapper=class:new{
 		campos=vec2(0,0)
 	end,
 	
-	update=function(self)
+	updateAnim=function(self)
 		local animframe=framectr/self.speed
 		
 		if (animframe<<16==0) then
@@ -997,6 +1085,9 @@ mapper=class:new{
 			)
 		end
 
+	end,
+
+	updateCam=function(self)
 		local x,y=player.pos()
 
 		self.campos.x=(x-64)<0 and 0 or x-64
@@ -1073,7 +1164,6 @@ if t_zone then
 	animtable=subsplit(data, 5)
 
 	d(animtable)
-	 
 	stop('eh')
 end
 __gfx__
