@@ -9,7 +9,7 @@ __lua__
 --[[const]] MV=false
 --[[const]] FPS=60
 --[[const]] t_zone=false
---[[const]] no_enemies=false
+--[[const]] no_enemies=true
 
 if DEBUG then
 	norm_per_frame=0
@@ -260,6 +260,14 @@ vec2=class:new{
 
 	sq_len=function(_ENV)
 		return x*x+y*y
+	end,
+
+	fromAngle=function(self, angle, len)
+		len = len or 1
+		return self:create(
+			len*cos(angle), 
+			len*sin(angle)
+		)
 	end,
 	
 	create=function(self, x, y)
@@ -780,14 +788,16 @@ player=class:new{
 				if not act.was_hit then
 					local has_hit = testRectIntersection(sw_mask, act.mask:offset(act.pos()))
 					if has_hit then
-						act.health -= 1
-						if act.health <= 0 then
-							del(actors, act)
-						else 
-							act.mv *= -1
-							act.mv:add((mv*2)())
+						-- act.health -= 1
+						-- if act.health <= 0 then
+						-- 	del(actors, act)
+						-- else 
+							--act.mv *= -1
+							d('act mv:'..tostr(act.mv))
+							act.mv:add((mv:normalize()*3)())
+							d('modified act mv:'..tostr(act.mv))
 							act.was_hit=true;
-						end
+						-- end
 					end
 				end
 			end
