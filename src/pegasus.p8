@@ -1,670 +1,202 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- pegasus dream
+-- Boot of Fury
 
 -- CONSTANTS
 --[[const]] DEBUG=true
 --[[const]] MASK=false
---[[const]] MV=false
+--[[const]] MV=true
 --[[const]] FPS=60
---[[const]] t_zone=false
 --[[const]] no_enemies=true
 
-if DEBUG then
-	norm_per_frame=0
-	norm_arr={}
-end
+#include support/fns.lua
+#include support/class.lua
 
-if not t_zone then
-	function _init()
-		d('---INIT----')
+#include support/vec2.lua
+#include support/rect2.lua
 
-		framectr=0
+#include support/sprite.lua
+#include support/io.lua
 
-		actors=seq({},'actors')
+#include actors/actor.lua
+#include actors/knight.lua
+#include actors/fool_knight.lua
 
-		if not no_enemies then
-			for _=1,20 do
-				local kind = rnd({slime, knight, fool_knight, p_knight})
-				add(actors, kind(getRandomTile()))
-			end
+function _init()
+	d('---INIT----')
+	framectr=0
 
-			add(actors, slime(48,48))
-			add(actors, p_knight(48,48))
+	actors={}
+
+	if not no_enemies then
+		for _=1,20 do
+			local kind = rnd({knight, fool_knight})
+			add(actors, kind(getRandomTile()))
 		end
 
-		add(actors, knight(48,48))
-	
-		sfx(0)
 	end
 
-	-- ProcessInput
-	-- AI
-	-- Physics
-	
-	function _update60()
-		framectr+=1
+	add(actors, knight(getRandomTile()))
+	add(actors, fool_knight(48,48))
 
-		mapper:updateAnim()
-	
-		io:update()
+	sfx(0)
+end
 
-		player:input()
-		foreach(actors, invoke('input'))
-		player:update()
-		foreach(actors, invoke('update'))
+function _update60()
+	framectr+=1
 
-		mapper:updateCam()
+	mapper:updateAnim()
 
-		if DEBUG then
-			points:update()
+	io:update()
 
-			if framectr % 10 == 1 then
+	player:input()
+	foreach(actors, invoke('input'))
+
+	player:update()
+	foreach(actors, invoke('update'))
+
+	mapper:updateCam()
+
+	if DEBUG then
+		points:update()
+
+		every(10, function()
 				hud:set('#mv', format2(#player.mv))
 
 				-- pad string
 				local cpuDisp = tostr(flr(stat(1)*100))
-				if (#cpuDisp == 1) cpuDisp=' '..cpuDisp
+				if (#cpuDisp == 1) then 
+					cpuDisp=' '..cpuDisp
+				end
 
-				hud:set('n', norm_per_frame) 
 				hud:set('c%', cpuDisp)
 				hud:set('#a', #actors)
-			end
+		end)
 
-			-- clean debug states
-			norm_per_frame=0
+	end
+end
+
+if DEBUG then
+	function displayOverlay(a)
+		-- display colision box
+		if MASK then
+			color(9)
+			local r = a.mask:offset(a.pos())
+			rect(r())
+			color(7)
+		end
+
+		if MV then
+			-- display mv
+			local pos=a.pos+vec2(3,3);
+			local zz=pos+(a.mv*20);
+			line(pos.x, pos.y, zz.x, zz.y)
 		end
 	end
+end
 
+
+function _draw()
+	cls(11)
+
+	mapper:draw()
+	foreach(actors, invoke('draw'))
+
+	player:draw()
+	
 	if DEBUG then
-		function displayOverlay(a)
-			-- display colision box
-			if MASK then
-				color(9)
-				local r = a.mask:offset(a.pos())
-				rect(r())
-				color(7)
-			end
-
-			if MV then
-				-- display mv
-				local pos=a.pos+vec2(3,3);
-				local zz=pos+(a.mv*20);
-				line(pos.x, pos.y, zz.x, zz.y)
-			end
-		end
-	end
-	
-
-	function _draw()
-		cls(11)
-	
-		mapper:draw()
-		foreach(actors, invoke('draw'))
-
-		player:draw()
-		
-		if DEBUG then
-			points:draw()
-			hud:draw(mapper.campos())
-			foreach(actors, displayOverlay)
-			displayOverlay(player)
-		end
+		points:draw()
+		hud:draw(mapper.campos())
+		foreach(actors, displayOverlay)
+		displayOverlay(player)
 	end
 end
--->8
--- support class/functions
--- 
-
-function d(...)
-	for v in all(pack(...)) do
-		printh(v)
-	end
-end
-
-function invoke(name)
-	return function (o)
-		o[name](o)
-	end
-end
-
-function get(name)
-	return function(o)
-		return o[name]
-	end
-end
-
-function id(val)
-	return function()
-		return val;
-	end
-end
-
-
-
-function format2(n)
-	local s =
-		flr(n) .. "." ..
-		flr(n%1 * 10^2)
-	
-	if #s != 4 then
-		s=s..'0'
-	end
-	return s
-end
-
-function i2(s)
-	local l=split(s, '\n')
-	local rv=''
-	for i=1,#l-1 do
-		rv..=l[i]..'\n  '
-	end
-	return rv..l[#l]
-end
-
-function ifn(v)
-	if type(v)=='table' then
-		return i2(tostr(v))
-	end
-	
-	return tostr(v)
-end
-
-function tbl_tostr(t)
-	local rv=(t.NAME or 'unamed')..': {\n'
-	for k, v in pairs(t) do
-		v=ifn(v)
-		rv..=' '..k..'='..v..',\n'
-	end
-	return rv..'}'
-end
-
-function seq_tostr(s, n)
-	local rv = (n or 'seq')..': [\n'
-	for v in all(s) do
-		v=ifn(v)
-
-		rv..=' '..v..', \n'
-	end
-	return rv..']'
-end
-
-class=setmetatable({
-	NAME='class',
-	new=function(self, t, mt)
-		t = t or {}
-
-		mt = mt or {}
-		mt.__index=mt.__index or self
-		mt.__tostring=mt.__tostring or tbl_tostr
-		mt.__call=mt.__call or function (tbl, ...) 
-			if tbl.create then
-				return tbl:create(...)
-			end
-		end
-
-		t=setmetatable(t, mt)
-		
-		-- For any class, call initialize when the instance is newed.
-		-- This will be most useful for singleton
-		if t.initialize then
-			t:initialize()
-		end
-
-		return t
-	end,
-
-	include=function(tbl, mixin)
-		for k,v in pairs(mixin) do
-			tbl[k]=v
-		end
-	end
-}, {__index = _ENV})
-
-seq=class:new{
-	NAME='seq',
-	create=function(self,s,name)
-		return class.new(
-			self,
-			s, 
-			{__tostring=function (own) 
-				return seq_tostr(own, name or self.NAME) 
-			end}
-		)
-	end
-}
-
-vec2=class:new{
-	NAME='vec2',
-	x=0,
-	y=0,
-
-	normalize=function(self)
-		if DEBUG then norm_per_frame+=1 end
-
-		local len=#self;
-
-		if (len<0.1) then
-			return vec2(0, 0)
-		else
-			return self/len;
-		end
-	end,
-
-	add=function(self, i, j)
-		self.x+=i
-		self.y+=j
-		return self;
-	end,
-
-	sq_len=function(_ENV)
-		return x*x+y*y
-	end,
-
-	fromAngle=function(self, angle, len)
-		len = len or 1
-		return self:create(
-			len*cos(angle), 
-			len*sin(angle)
-		)
-	end,
-	
-	create=function(self, x, y)
-		local vv = {x=x, y=y}
-
-		if (type(x)=='table' and x.NAME=='vec2') then
-			vv={x=x.x, y=x.y}
-		end
-
-		return class.new(
-			self, 
-			vv,
-			{
-				__tostring=function(v)
-					return 
-						'v<'..format2(v.x)..
-						','..format2(v.y)..'>'
-					end,
-
-				__add=function(v1, v2)
-					return vec2(
-						v1.x+v2.x,
-						v1.y+v2.y
-					)
-				end,
-
-				__sub=function(v1, v2)
-					return vec2(
-						v1.x-v2.x,
-						v1.y-v2.y
-					)
-				end,
-
-				__mul=function(a, b)
-					if (type(b)=='number') then
-						return vec2(
-							a.x*b,
-							a.y*b
-						)
-					end
-
-					return vec2(
-						a.x*b.x,
-						a.y*b.y
-					)
-				end,
-
-				__div=function(v1, q)
-					return vec2(
-						v1.x/q,
-						v1.y/q
-					)
-				end,
-
-				__len=function(v)
-					return sqrt(v.x^2+v.y^2)
-				end,
-						
-				__call=function(v)
-					return v.x,v.y
-				end,
-				
-				__eq=function(v1,v2) 
-					return v1.x == v2.x and v1.y == v2.y
-				end,
-			})
-	end,
-}
-
-rect2=class.new{
-	NAME='rect2',
-
-	offset=function(self,i,j)
-		return rect2(
-			self.x1+i, self.y1+j,
-			self.x2+i, self.y2+j
-		)
-	end,
-
-	create=function(self,x1,y1,x2,y2)
-		local tbl=class.new(
-			self,
-			{ x1=x1,y1=y1,x2=x2,y2=y2 },
-			{
-				__tostring=function(_ENV)
-					return 'r<'
-						..tostr(x1)..','..tostr(y1)..','..tostr(x2)..','..tostr(y2)..'>'
-				end,
-
-				__call=function(_ENV)
-						return x1,y1,x2,y2
-				end,
-			}
-		)
-
-		return tbl
-	end
-}
-
-io=class:new{
-	NAME='io',
-	vec=nil,
-	norm=nil,
-	x=false,
-	o=false,
-
-	xcnt=0,
-	ocnt=0,
-	
-	nodir=false,
-
-	initialize=function(_ENV)
-		vec=vec2(0, 0)
-		norm=vec2(0, 0)
-	end,
-
-	update=function(_ENV)
-		local i=0
-		local j=0
-		nodir=true
-
-		if (btn(⬅️)) i=-1 nodir=false
-		if (btn(➡️)) i=1 nodir=false
-		if (btn(⬆️)) j=-1 nodir=false
-		if (btn(⬇️)) j=1 nodir=false
-
-		if (btn(❎)) then 
-			x=true 
-			xcnt+=1
-		else 
-			x=false
-			xcnt=0
-		end
-		
-		if (btn(🅾️)) then 
-			o=true 
-			ocnt+=1
-		else 
-			o=false
-			ocnt=0
-		end
-
-		vec.x=i vec.y=j
-
-		local factor=1 
-		if (abs(i)==1 and abs(j)==1) then
-				factor=0.707
-		end
-
-		norm=vec*factor
-	end,
-}
-
-sprite=class:new{
-	NAME='sprite',
-
-	create = function(self, pos_vec, tileId)
-		local tbl = class.new(self, {
-			pos=pos_vec,
-			id=tileId,
-		}, {__call=function(s) return s.pos(); end})
-		return tbl;
-	end,
-
-	draw = function(_ENV)
-		spr(id, pos())
-	end,
-
-	update=function()
-	end,
-}
 
 -->8
--- game classes
+-- debug classes
 --
 
-actor=class:new{
-	NAME='actor',
+if DEBUG then
+	points=class({
+		pt={},
 
-	-- defaults values
-	tileId=0,
-	speed=0,
-	mask=rect2(0,0,7,7),
-	mv=vec2(0,0),
-	health=1,
-	was_hit=false,
+		add=function(_ENV,x,y,c,l,r)
+			add(
+			points.pt,
+			{x=x,y=y,c=c,l=l,r=r or 1}
+			)
+		end,
 
-	create=function(self,x,y)
-		local pos=vec2(x,y)
-
-		local tbl=class.new(self, {
-			pos=pos,
-			body=sprite(pos, self.tileId),
-			update_cor=self.behavior and cocreate(self.behavior) or nil
-		})
-
-		return tbl
-	end,
-
-	input=function(_ENV)
-		if process_mv then
-			_ENV:process_mv()
-		else
-			if costatus(update_cor) == 'dead' then
-				update_cor=cocreate(behavior)
+		update=function(_ENV)
+			for v in all(pt) do
+				v.l-=1
+				if(v.l<=0) then
+					del(pt, v)
+				end
 			end
-			assert(coresume(update_cor, _ENV))
-		end
+		end,
 
-		if(mv != old_mv or speed != old_speed) then
-			mv=mv:normalize()*speed
-		end
+		draw=function(_ENV) 
+			foreach(pt, function(p)
+				if(p.r>1) then
+					circfill(p.x,p.y,p.r,p.c)
+				else
+					pset(p.x, p.y, p.c)
+				end
+			end)
+		end,
+	})
 
-		old_mv=vec2(mv)
-		old_speed=speed
-	end,
-	
-	update=function(_ENV)
-		mv,colided=process_map_colision(
-			mask:offset(pos()),
-			mv
-		)
+	hud=class({
+		baseY=0,
+		col=7,
+		data={},
+		order={},
+		
+		set=function(_ENV, key, val)
+			if not val then
+				del(data, key)
+				del(order, key)
+			else
+				if not data[key] then
+					add(order, key)
+				end
 
-		pos:add(mv())
-	end,
+				data[key]=tostr(val)
+			end
+		end,
 
-	-- update=function(_ENV)
-	-- 	if process_mv then
-	-- 		_ENV:process_mv()
-	-- 	else
-	-- 		if costatus(update_cor) == 'dead' then
-	-- 			update_cor=cocreate(behavior)
-	-- 		end
-	-- 		assert(coresume(update_cor, _ENV))
-	-- 	end
-
-	-- end,
-
-	draw=function(_ENV)
-		body:draw()
-	end
-
-	-- process_mv=virtual function = 0
-}
-
--- Behaviors coroutines
-
-function wait_internal(v)
-	for _=1,v do
-		yield()
-	end
+		draw=function(_ENV, x, y)
+			rectfill(x,y+baseY,x+128,y+baseY+6,1)
+			local str=""
+			for i in all(order) do
+				local j=data[i]
+				str=str..
+					i..': '..j..' '
+			end
+			print(str,x,y,col)
+		end,
+	})
 end
 
-function wait_(fnOrV)
-	return function(self)
-		local v=type(fnOrV)=='function' and fnOrV(self) or fnOrV
-		wait_internal(v)
-	end
-end
+-->8
+-- player classes
+--
 
-function random_vec()
-	return vec2(rnd(2)-1, rnd(2)-1);
-end
-
-
-function toward_player(_ENV)
-	local v=player.pos-pos
-	return v:normalize()
-end
-
-function set_(key, fnOrV)
-	if type(fnOrV) == 'function' then
-		return function(self)
-			self[key]=fnOrV(self)
-		end
-	end
-
-	return function(self)
-		self[key]=fnOrV
-	end
-end
-
-function set_mv(fn)
-	return function(_ENV)
-		mv=fn(_ENV)
-	end
-end
-
-function add_mv(fn)
-	return function(_ENV)
-		mv+=fn(_ENV)
-	end
-end
-
-function untilMapCollision_(_ENV)
-	repeat
-		yield()
-	until colided
-end
-
-function pipe_(f_list)
-	local outArgs={}
-
-	return function(self)
-		for fn in all(f_list)
-		do
-			outArgs=pack(fn(self, unpack(outArgs)))
-		end
-	end
-end
-	
-
-
-knight=actor:new{
-	NAME='knight',
-	tileId=48,
-	speed=0.5,
-
-	create=function(...)
-		local tbl=actor.create(...)
-		tbl.speed=0.25+rnd(0.5)
-		return tbl
-	end,
-
-	behavior=pipe_{
-		set_('speed', function () return 0.25+rnd(0.5) end),
-		wait_(function() return rnd(90) end),
-		add_mv(toward_player),
-	}
-}
-
-fool_knight=actor:new{
-	NAME='Fool_Knight',
-	tileId=49,
-	speed=1,
-
-	behavior=pipe_{
-		add_mv(random_vec),
-		wait_(5+rnd(5)),
-	},
-}
-
-function moveToward(x,y,t)
-	return function(_ENV)
-		mv=vec2(x,y)
-		wait_internal(t)
-	end
-end
-
-slime=actor:new{
-	NAME='slime',
-	tileId=50,
-
-	behavior=pipe_({
-		set_('speed', function() return 0.2+rnd(0.8) end),
-		moveToward(1,0,0.5*FPS),
-		moveToward(0,-1,0.5*FPS),
-		moveToward(-1,0,0.5*FPS),
-		moveToward(0,1,0.5*FPS),
-
-		set_('mv', toward_player),
-		untilMapCollision_,
-		wait_(1 * FPS),
-	}),
-}
-
-function trackPlayer(n)
-	return function(self)
-		local nbr_f=n
-		repeat
-			self.mv=toward_player(self)
-			nbr_f-=1
-			yield()
-		until (nbr_f==0)
-	end
-end
-
-p_knight=actor:new{
-	NAME='Pegasus_Knight',
-	tileId=51,
-
-	behavior=pipe_({
-		set_('speed', 0.2),
-		trackPlayer(5*FPS, 0.2),
-
-		set_('mv', vec2(0,0)),
-		wait_(3*FPS),
-		set_('speed', 3),
-		set_('mv', toward_player),
-		untilMapCollision_,
-		set_('speed', 1),
-		wait_(1*FPS)
-	}),
-}
-
-player=class:new{
+player=class{
 	NAME='player',
+
+	sword_anim={
+		{54, vec2(8,0),false,false},
+		{56, vec2(4,-4),false,false},
+		{57, vec2(0,-8),false,false},
+		{56, vec2(-4,-4),true,false},
+		{54, vec2(-8,0),true,false},
+		{56, vec2(-4,4),true,true},
+		{57, vec2(0,8),false,true},
+		{56, vec2(4,4),false,true},
+	},
 
 	initialize=function(_ENV)
 		pos=vec2(64,64)
@@ -680,17 +212,6 @@ player=class:new{
 		status='normal'
 	end,
 
-	sword_anim={
-		{54, vec2(8,0),false,false},
-		{56, vec2(4,-4),false,false},
-		{57, vec2(0,-8),false,false},
-		{56, vec2(-4,-4),true,false},
-		{54, vec2(-8,0),true,false},
-		{56, vec2(-4,4),true,true},
-		{57, vec2(0,8),false,true},
-		{56, vec2(4,4),false,true},
-	},
-
 	behavior=function (_ENV)
 		boostFrames=0
 		if io.x then
@@ -700,7 +221,7 @@ player=class:new{
 				boostFrames+=1
 				yield()
 				if (boostFrames >= 16) then
-					mv=vec2(0,0)
+					mv=vecNil
 				end
 			until (not io.x or boostFrames > 60)
 			if boostFrames < 16 then
@@ -720,7 +241,7 @@ player=class:new{
 			mv+=io.norm
 
 			if(mv:sq_len()>1) then 
-				mv=mv:normalize()*1
+				mv=mv:normalize()
 			end
 
 			if io.nodir then mv=mv*0.95 end
@@ -728,7 +249,7 @@ player=class:new{
 
 		if status == 'boost' then
 			repeat
-				mv=(mv+(io.norm*0.15)):normalize()*3
+				mv=(mv+(io.norm*0.15)):normalize(3)
 				yield()
 			until colided
 			foreach(actors, function (act) act.was_hit = false end)
@@ -746,7 +267,7 @@ player=class:new{
 				mv+=io.norm*0.15
 
 				if(mv:sq_len()>0.5*0.5) then 
-					mv=mv:normalize()*0.5
+					mv=mv:normalize(0.5)
 				end
 
 				atk_fr+=0.3
@@ -766,38 +287,22 @@ player=class:new{
 	end,
 
 	update=function (_ENV)
-		function testRectIntersection(ra, rb)
-			local xa1, ya1, xa2, ya2=ra()
-			local xb1, yb1, xb2, yb2=rb()
-			
-			local insideY = 
-			  (ya1 > yb1 and ya1 < yb2) or
-				(ya2 > yb1 and ya2 < yb2)
-
-			local insideX = 
-			  (xa1 > xb1 and xa1 < xb2) or
-				(xa2 > xb1 and xa2 < xb2)
-
-			return insideX and insideY
-		end
-
-
 		if status == 'attack' or status == 'boost' then
 			sw_mask = _ENV:getSwordMask(atk_fr):offset(pos())
 			for act in all(actors) do
 				if not act.was_hit then
 					local has_hit = testRectIntersection(sw_mask, act.mask:offset(act.pos()))
 					if has_hit then
-						-- act.health -= 1
-						-- if act.health <= 0 then
-						-- 	del(actors, act)
-						-- else 
-							--act.mv *= -1
+						 act.health -= 1
+						 if act.health <= 0 then
+						 	del(actors, act)
+						 else 
+							-- act.mv *= -1
 							d('act mv:'..tostr(act.mv))
-							act.mv:add((mv:normalize()*3)())
+							act.mv:add((mv:normalize(3))())
 							d('modified act mv:'..tostr(act.mv))
 							act.was_hit=true;
-						-- end
+						end
 					end
 				end
 			end
@@ -826,7 +331,7 @@ player=class:new{
 			local col=acol[flr(mult)]
 			
 			pal(9, col)
-			if (io.vec.y!=0) then
+			if (io.vec.y~=0) then
 				sspr(
 					64,8,
 					7,7,
@@ -900,71 +405,6 @@ player=class:new{
 	end,
 }
 
-if DEBUG then
-	points=class:new({
-		pt={},
-
-		add=function(_ENV,x,y,c,l,r)
-			add(
-			points.pt,
-			{x=x,y=y,c=c,l=l,r=r or 1}
-			)
-		end,
-
-		update=function(_ENV)
-			for v in all(pt) do
-				v.l-=1
-				if(v.l<=0) then
-					del(pt, v)
-				end
-			end
-		end,
-
-		draw=function(_ENV) 
-			foreach(pt, function(p)
-				if(p.r>1) then
-					circfill(p.x,p.y,p.r,p.c)
-				else
-					pset(p.x, p.y, p.c)
-				end
-			end)
-		end,
-	})
-end
-
-if DEBUG then
-	hud=class:new({
-		baseY=0,
-		col=7,
-		data={},
-		order={},
-		
-		set=function(_ENV, key, val)
-			if not val then
-				del(data, key)
-				del(order, key)
-			else
-				if not data[key] then
-					add(order, key)
-				end
-
-				data[key]=tostr(val)
-			end
-		end,
-
-		draw=function(_ENV, x, y)
-			rectfill(x,y+baseY,x+128,y+baseY+6,1)
-			local str=""
-			for i in all(order) do
-				local j=data[i]
-				str=str..
-					i..': '..j..' '
-			end
-			print(str,x,y,col)
-		end,
-	})
-end
-
 -->8
 -- map stuff
 -- flags on tiles
@@ -991,8 +431,6 @@ function is_wall(x, y)
 end
 
 -- pos=position to check.
--- TODO:
--- return 'H' / 'V' / 'C'
 function process_map_colision(pos,mv)
 	-- sprite corners:
 	-- c1 c2
@@ -1068,7 +506,7 @@ function getRandomTile()
 	return i*8,j*8
 end
 
-mapper=class:new{
+mapper=class{
 	initialize=function(_ENV)
 		-- setup dark blue as transparency
 		palt(0, false)
@@ -1110,72 +548,6 @@ mapper=class:new{
 	end
 }
 
--->8
--- testing zone
-
-if t_zone then
-	cor=cocreate(function(a)
-		local b=''
-		for j=1,5 do
-			print(a..' '..b..' '..tostr(j))
-			a,b=yield(j, 10+j)
-			b=b or 'undefined'
-		end
-		return 99,1
-	end)
-
-	cls()
-	
-	function resume(thr, ...)
-		local error,rv= coresume(thr, ...)
-		assert(error, rv)
-		return rv
-	end
-	
-	d(cor, costatus(cor))
-	print(resume(cor, '1st', 'hello'))
-	print(resume(cor, '2nd', 'world'))
-	print(resume(cor, '3rd'))
-	print(resume(cor, '4th'))
-	print(resume(cor, '5th'))
-	print(resume(cor, '5th'))
-	d(cor, costatus(cor))
-
-  data=split('54, 8,0,false,false,54, 8,-2,false,false, 55, 4,-4,false,false, 56, 4,-4,false,false, 57, 0,-8,false,false, 57, 0,-8,false,false, 56, -4,-4,true,false, 55, -4,-4,true,false, 54, -8,-2,true,false,54, -8,0,true,false')
-  -- data=split('54, 8,0,false,false,|,54, 8,-2,false,false, 55, 4,-4,false,false, 56, 4,-4,false,false, 57, 0,-8,false,false, 57, 0,-8,false,false, 56, -4,-4,true,false, 55, -4,-4,true,false, 54, -8,-2,true,false,54, -8,0,true,false')
-
-	function subsplit(s, n)
-		local rv=seq{}
-		for i=1,(#s\n)-1 do
-			local subs=seq{}
-			for j=1,n do
-				add(subs, s[i*n+j])
-			end
-			add(rv, subs)
-		end
-		return rv
-	end
-
-	-- function subsplit(s)
-	-- 	local rv=seq{}
-	-- 	local i = 1
-	-- 	repeat
-	-- 		local subs=seq{}
-	-- 		repeat
-	-- 			local item = s[i]
-	-- 			add(subs, item)
-	-- 			i+=1
-	-- 		until item != '|'
-	-- 		add(rv, subs)
-	-- 	until i == #s
-	-- 	return rv
-	-- end
-
-	animtable=subsplit(data, 5)
-
-	d(animtable)
-	stop('eh')
-end
 __gfx__
 00000000119999111199991111999911119999111199991111999911000000000000000000000000000000000000000011110000001111100000011100000000
 66666666198888211988882119888821198888211988882119888821000000000000000000000000000000000000000011100777700111007777001100000000
