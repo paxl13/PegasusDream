@@ -3,9 +3,8 @@ actor = class {
 
 	-- defaults values
 	tileId = 0,
-	speed = 0,
 	mask = rect2(0, 0, 7, 7),
-	mv = vec2(0, 0),
+	mv = vecNil(),
 	health = 1,
 	was_hit = false,
 
@@ -15,36 +14,39 @@ actor = class {
 		local tbl = class.new(self, {
 			pos = pos,
 			body = sprite(pos, self.tileId),
-			co_behavior = self.behavior and cocreate(self.behavior) or nil
 		})
+		tbl:change_state(tbl.initial_state)
 
 		return tbl
 	end,
 
 	input = function(_ENV)
-		-- if costatus(co_behavior) == 'dead' then
-		-- 	co_behavior=cocreate(behavior)
-		-- end
-		local new_state = resume(co_behavior, _ENV)
+		local new_state = resume(state_co, _ENV)
+
 		if new_state then
-			co_behavior = cocreate(new_state)
+			change_state(_ENV, new_state)
 		end
+	end,
 
-		-- if(mv != old_mv or speed != old_speed) then
-		-- 	mv=mv:normalize()*speed
-		-- end
-
-		-- old_mv=vec2(mv)
-		-- old_speed=speed
+	change_state = function(_ENV, state_name)
+		local state_fn = _ENV[state_name];
+		state_co = cocreate(state_fn)
+		current_state = state_name
 	end,
 
 	update = function(_ENV)
+		body:update()
+
 		mv, colided = process_map_colision(
 			mask:offset(pos()),
 			mv
 		)
 
 		pos:add(mv())
+	end,
+
+	attacked = function(_ENV)
+		change_state(_ENV, 'dying')
 	end,
 
 	draw = function(_ENV)

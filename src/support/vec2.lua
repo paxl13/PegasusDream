@@ -105,8 +105,8 @@ vec2 = class {
 	end,
 }
 
-vecNil = vec2(0, 0)
-vecLeft = vec2(-1, 0)
-vecRight = vec2(1, 0)
-vecUp = vec2(0, 1)
-vecDown = vec2(0, -1)
+vecNil = function() return vec2(0, 0) end
+vecLeft = function() return vec2(-1, 0) end
+vecRight = function() return vec2(1, 0) end
+vecUp = function() return vec2(0, -1) end
+vecDown = function() return vec2(0, 1) end
