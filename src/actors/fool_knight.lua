@@ -1,19 +1,25 @@
+birth_sprite = animated_sprite.pre_create({
+	{ 38, 15 },
+	{ 39, 7 },
+	{ 40, 7 },
+	{ 41, 15 },
+}, false);
+
+fool_idle = animated_sprite.pre_create({
+	{ 49, 30 },
+	{ 35, 30 },
+}, true);
+
 fool_knight = actor:new {
 	NAME = 'Fool_Knight',
 	tileId = 49,
 	initial_state = 'birth',
 
 	birth = function(_ENV)
-		body = animated_sprite(pos, {
-			{ 38, 15 },
-			{ 39, 7 },
-			{ 40, 7 },
-			{ 41, 15 },
-		})
+		body = birth_sprite(pos)
+		body:yeildUntilDone()
 
-		yieldUntil(function() return body.done end)
-
-		body = sprite(pos, tileId)
+		body = fool_idle(pos)
 		return 'wander'
 	end,
 

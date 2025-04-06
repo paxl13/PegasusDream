@@ -49,6 +49,17 @@ animated_sprite = sprite:new {
 			done = true
 		end
 		id, fr_n = unpack(anim[current])
-	end
+	end,
 
+	yeildUntilDone = function(_ENV)
+		repeat
+			yield()
+		until done
+	end
 }
+
+animated_sprite.pre_create = function(a_table, loop)
+	return function(pos)
+		return animated_sprite(pos, a_table, loop)
+	end
+end
