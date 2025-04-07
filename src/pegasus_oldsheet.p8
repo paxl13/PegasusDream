@@ -1,0 +1,880 @@
+pico-8 cartridge // http://www.pico-8.com
+version 42
+__lua__
+-- Boot of Fury
+
+-- CONSTANTS
+--[[const]] DEBUG=true
+--[[const]] MASK=false
+--[[const]] MV=false
+--[[const]] FPS=60
+--[[const]] no_enemies=true
+
+#include support/fns.lua
+#include support/class.lua
+
+#include support/vec2.lua
+#include support/rect2.lua
+
+#include support/sprite.lua
+#include support/io.lua
+
+#include actors/actor.lua
+#include actors/knight.lua
+#include actors/fool_knight.lua
+
+function _init()
+	d('---INIT----')
+	framectr=0
+
+	actors={}
+
+	if not no_enemies then
+		for _=1,20 do
+			local kind = rnd({knight, fool_knight})
+			add(actors, kind(getRandomTile()))
+		end
+
+	end
+
+	add(actors, knight(getRandomTile()))
+	add(actors, fool_knight(48,48))
+
+	sfx(0)
+end
+
+function _update60()
+	framectr+=1
+
+	mapper:updateAnim()
+
+	io:update()
+
+	player:input()
+	foreach(actors, invoke('input'))
+
+	player:update()
+	foreach(actors, invoke('update'))
+
+	mapper:updateCam()
+
+	if DEBUG then
+		points:update()
+
+		onceEvery(10, function()
+				hud:set('#mv', format2(#player.mv))
+
+				-- pad string
+				local cpuDisp = tostr(flr(stat(1)*100))
+				if (#cpuDisp == 1) then 
+					cpuDisp=' '..cpuDisp
+				end
+
+				hud:set('c%', cpuDisp)
+				hud:set('#a', #actors)
+		end)
+
+	end
+end
+
+if DEBUG then
+	function displayOverlay(a)
+		-- display colision box
+		if MASK then
+			color(9)
+			local r = a.mask:offset(a.pos())
+			rect(r())
+			color(7)
+		end
+
+		if MV then
+			-- display mv
+			local pos=a.pos+vec2(3,3);
+			local zz=pos+(a.mv*20);
+			line(pos.x, pos.y, zz.x, zz.y)
+		end
+	end
+end
+
+
+function _draw()
+	cls(11)
+
+	mapper:draw()
+	foreach(actors, invoke('draw'))
+
+	player:draw()
+	
+	if DEBUG then
+		points:draw()
+		hud:draw(mapper.campos())
+		foreach(actors, displayOverlay)
+		displayOverlay(player)
+	end
+end
+
+-->8
+-- debug classes
+--
+
+if DEBUG then
+	points=class({
+		pt={},
+
+		add=function(_ENV,x,y,c,l,r)
+			add(
+			points.pt,
+			{x=x,y=y,c=c,l=l,r=r or 1}
+			)
+		end,
+
+		update=function(_ENV)
+			for v in all(pt) do
+				v.l-=1
+				if(v.l<=0) then
+					del(pt, v)
+				end
+			end
+		end,
+
+		draw=function(_ENV) 
+			foreach(pt, function(p)
+				if(p.r>1) then
+					circfill(p.x,p.y,p.r,p.c)
+				else
+					pset(p.x, p.y, p.c)
+				end
+			end)
+		end,
+	})
+
+	hud=class({
+		baseY=128-7,
+		data={},
+		order={},
+		
+		set=function(_ENV, key, val)
+			if not val then
+				del(data, key)
+				del(order, key)
+			else
+				if not data[key] then
+					add(order, key)
+				end
+
+				data[key]=tostr(val)
+			end
+		end,
+
+		draw=function(_ENV, x, y)
+			rectfill(x,y+baseY,x+128,y+baseY+6,1)
+			local str=""
+			for i in all(order) do
+				local j=data[i]
+				str=str..
+					i..': '..j..' '
+			end
+			line(x,y+baseY-1, x+128, y+baseY-1, 0)
+			print(str,x,y+baseY+1,6)
+		end,
+	})
+end
+
+-->8
+-- player classes
+--
+
+player=class{
+	NAME='player',
+
+	sword_anim={
+		{54, vec2(8,0),false,false},
+		{56, vec2(4,-4),false,false},
+		{57, vec2(0,-8),false,false},
+		{56, vec2(-4,-4),true,false},
+		{54, vec2(-8,0),true,false},
+		{56, vec2(-4,4),true,true},
+		{57, vec2(0,8),false,true},
+		{56, vec2(4,4),false,true},
+	},
+
+	initialize=function(_ENV)
+		pos=vec2(64,64)
+		mv=vec2(0,0)
+		mask=rect2(2,2,5,5)
+		direction=vec2(0,0)
+
+		colided=false
+
+		body=sprite(pos, 16)
+
+		update_cor=cocreate(behavior)
+		status='normal'
+	end,
+
+	behavior=function (_ENV)
+		boostFrames=0
+		if io.x then
+			status='charging'
+
+			repeat
+				boostFrames+=1
+				yield()
+				if (boostFrames >= 16) then
+					mv=vecNil()
+				end
+			until (not io.x or boostFrames > 60)
+			if boostFrames < 16 then
+				status = 'attack'
+				atk_fr = 0
+			elseif boostFrames > 60 then
+				status = 'boost'
+			else
+				status = 'normal'
+			end
+
+			boostFrames=0
+		end
+		
+		-- state machine based on 'status'
+		if status == 'normal' then
+			mv+=io.norm
+
+			if(mv:sq_len()>1) then 
+				mv=mv:normalize()
+			end
+
+			if io.nodir then mv=mv*0.95 end
+		end
+
+		if status == 'boost' then
+			repeat
+				mv=(mv+(io.norm*0.15)):normalize(3)
+				yield()
+			until colided
+			foreach(actors, function (act) act.was_hit = false end)
+
+			status = 'normal'
+		end
+
+		if status == 'attack' then
+			-- local angle = atan2(mv.x, mv.y)
+			local angle = atan2(io.vec())
+			local initial_fr = flr(angle*#sword_anim)-(#sword_anim\4)
+
+			atk_fr = initial_fr;
+			repeat
+				mv+=io.norm*0.15
+
+				if(mv:sq_len()>0.5*0.5) then 
+					mv=mv:normalize(0.5)
+				end
+
+				atk_fr+=0.3
+				yield()
+			until atk_fr >= initial_fr+(#sword_anim\2)+0.3
+			foreach(actors, function (act) act.was_hit = false end)
+			status = 'normal'
+		end
+
+	end,
+	
+	input=function (_ENV)
+		if costatus(update_cor) == 'dead' then
+			update_cor=cocreate(behavior)
+		end
+		assert(coresume(update_cor, _ENV))
+	end,
+
+	update=function (_ENV)
+		if status == 'attack' or status == 'boost' then
+			sw_mask = _ENV:getSwordMask(atk_fr):offset(pos())
+			for act in all(actors) do
+				if not act.was_hit then
+					local has_hit = testRectIntersection(sw_mask, act.mask:offset(act.pos()))
+					if has_hit then
+						act:attacked()
+						 -- act.health -= 1
+						 -- if act.health <= 0 then
+						 -- 	del(actors, act)
+						 -- else 
+							-- -- act.mv *= -1
+							-- d('act mv:'..tostr(act.mv))
+							-- act.mv:add((mv:normalize(3))())
+							-- d('modified act mv:'..tostr(act.mv))
+							-- act.was_hit=true;
+						-- end
+					end
+				end
+			end
+		end
+
+		mv,colided=process_map_colision(
+			mask:offset(pos()),
+			mv
+		)
+
+		pos:add(mv())
+	end,
+
+	drawArrow=function(_ENV)
+		if (boostFrames>16) then
+			local x,y=pos()
+			local mult=1+boostFrames/20
+			local sx=8*mult
+
+			local acol={
+				10,
+				9,
+				8
+			}
+			local col=acol[flr(mult)]
+			
+			pal(9, col)
+			if (io.vec.y~=0) then
+				sspr(
+					64,8,
+					7,7,
+					(x+4)-(sx/2),(y+4)-(sx/2),
+					sx,sx,
+					false,io.vec.y>0		
+				)
+			else
+				sspr(
+					71,8,
+					7,7,
+					(x+4)-(sx/2),(y+4)-(sx/2),
+					sx,sx,
+					io.vec.x>0,false		
+				)
+			end
+			pal(9,9)		
+		end
+	end,
+
+	drawBoostSword=function(_ENV)
+		local angle = atan2(mv.x, mv.y)
+		angle+=0.0625 -- 1/16
+		_ENV:drawSword(flr(angle*#sword_anim))
+	end,
+
+	drawSword=function(_ENV, frame)
+		local s_id,offset,flip_x,flip_y=
+			unpack(sword_anim[flr(frame)%#sword_anim+1]);
+		s_pos=pos+offset
+		sspr(
+			(s_id % 16) * 8, (s_id \ 16) * 8, 
+			8,8,
+			s_pos.x, s_pos.y,
+			8,8,
+			flip_x,
+			flip_y
+		)
+	end,
+
+	getSwordMask=function(_ENV, frame)
+		local _,offset=
+			unpack(sword_anim[flr(frame)%#sword_anim+1]);
+		
+		return rect2(
+			offset.x, offset.y,
+			offset.x+8, offset.y+8
+		)
+	end,
+
+	draw=function (_ENV)
+		-- handle pegasus arrow
+		if status == 'charging' then
+			_ENV:drawArrow()
+		end
+
+		if status == 'attack' then
+			_ENV:drawSword(atk_fr)
+		end
+
+		if status == 'boost' then
+			_ENV:drawBoostSword()
+		end
+		
+		body:draw();
+
+		if (colided) then
+			sfx(0)
+		end
+	end,
+}
+
+-->8
+-- map stuff
+-- flags on tiles
+-- fl0: colision mask
+-- fl4,5: anmiation mask
+-- fl7: anmiation speed / 2
+
+function is_wall(x, y)
+	local colided = 
+		fget(mget(x\8, y\8), 0)
+
+	if DEBUG then
+		-- debugging code
+		if colided then
+			points:add(x, y, 
+				colided and 8 or 9,
+				colided and 30 or 1,
+				colided and 2 or 1
+			)
+		end
+	end
+	
+	return colided
+end
+
+-- pos=position to check.
+function process_map_colision(pos,mv)
+	-- sprite corners:
+	-- c1 c2
+	-- c3 c4
+
+	local colided=false
+
+	local m_x1, m_y1, m_x2, m_y2=pos()
+
+	local c1 = is_wall(m_x1, m_y1)
+	local c2 = is_wall(m_x1, m_y2)
+	local c3 = is_wall(m_x2, m_y1)
+	local c4 = is_wall(m_x2, m_y2)
+
+	if (c1 and c3 or c2 and c4) then
+		-- horizonal
+		mv.y*=-1
+		colided=true
+	end
+
+	if (c1 and c2 or c3 and c4) then
+		-- vertical
+		mv.x*=-1
+		colided=true
+	end
+
+	if (not colided and (
+		c1 or c2 or c3 or c4
+	)) then
+		-- corners
+		mv*=-1
+		colided=true
+	end
+
+	return mv,colided
+end
+
+function addmask(v, mask)
+	local l=v&mask
+	l=(l+1)&mask
+	v=(v&~mask)+l
+	return v
+end
+
+function eachtile(campos, fn)
+	local x,y=campos.x\8,campos.y\8
+
+	for i=x,x+15 do
+		for j=y,y+15 do
+			local t=mget(i, j)
+			local f=fget(t)
+			fn(
+				t, f,
+				function(n)
+					mset(i, j, n)
+				end,
+				i, j
+			)
+		end
+	end
+end
+
+function getRandomTile()
+	local is_valid=false
+	local i,j
+	repeat
+		i = flr(rnd(16))
+		j = flr(rnd(16))
+
+		local t=mget(i,j)
+		is_valid = not fget(t,0)
+	until is_valid
+	return i*8,j*8
+end
+
+mapper=class{
+	initialize=function(_ENV)
+		-- setup dark blue as transparency
+		palt(0, false)
+		palt(1, true)
+
+		speed=12
+		campos=vec2(0,0)
+	end,
+	
+	updateAnim=function(self)
+		local animframe=framectr/self.speed
+		
+		if (animframe<<16==0) then
+			eachtile(
+				self.campos,
+				function(t,f,set)
+					local m=(f>>4)&0b11
+					local s=(f>>7)&0b1
+					if m!=0 and animframe&s==0 
+					then
+						set(addmask(t,m))
+					end
+				end
+			)
+		end
+
+	end,
+
+	updateCam=function(self)
+		local x,y=player.pos()
+
+		self.campos.x=(x-64)<0 and 0 or x-64
+		self.campos.y=(y-64)<0 and 0 or y-64
+	end,
+
+	draw=function(_ENV)
+		camera(campos())
+		map()
+	end
+}
+
+__gfx__
+00000000119999111199991111999911119999111199991111999911000000000000000000000000000000000000000011110000001111100000011100000000
+66666666198888211988882119888821198888211988882119888821000000000000000000000000000000000000000011100777700111007777001100000000
+65555556982882829882288298822882988228829888288298828882000000000000000000000000000000000000000011107aaaa7011107aaaa701100000000
+66656666988228829828828298822882982222829822228298222282000000000000000000000000000000000000000011107aa7a7011107a7aa701100000000
+00656000988228829828828298222282988228829822228298222282000000000000000000000000000000000000000011107aaaa7011107aaaa701100000000
+00656000982882829882288298822882988228829888288298828882000000000000000000000000000000000000000011109777790111097777901100000000
+00656000198888211988882119888821198888211988882119888821000000000000000000000000000000000000000011109999990111099999901100000000
+00656000112222111122221111222211112222111122221111222211000000000000000000000000000000000000000000009999990000099999900000000000
+11000011110000111100001111000011110000111100001111000011110000111110111111001111100000011000000199909999990999099999909900000000
+10cccc0110cccc0110c22c0110ccc20110cccc0110cccc011022cc0110ccc2011109011110901111007777000077770044409999990444099999904400000000
+0cccccc0022cccc00cc22cc00cc222c00ccccc2002222cc00cc2ccc00cc222c0109990110990001107aaaa7007aaaa7000004999940000049999400000000000
+0cc222200c2222c00cc22cc00cc222c0022222200c2222c00cc22cc00c222cc0099999009999901107aa7a7007aa7a7011104444440111044444401100000000
+022222200c2222c00cc22cc00cc222c002222cc00c2222c00cc22cc00c222cc0000900010990001107aaaa7007aaaa7011104444440111044444401100000000
+02ccccc00cc222200ccc2cc00c222cc00cccccc00cccc2200cc22cc00c222cc01109011110901111097777900977779011104444440111044444401100000000
+10cccc0110cccc0110cc2201102ccc0110cccc0110cccc0110c22c01102ccc011100011111001111099999900999999011155444455111554444501100000000
+11000011110000011100001111000011110000111100001111000011110000117777111111111111099999900999999011115555551111155555511100000000
+10010011100100111001001111111111b333bb33b33b337b11771711711117717717777b71111771090000900900009011110000000001110000000000000000
+08808801088077010770770111111111bb3bb333b3bb37b317777771771177771777717b77117777007777000077770011100777777700110000000000000000
+0888e80108e8770107777701119999113bb3337333b3b7b377177177177771771171771b1777717707aaaa7007aaaa7011107aaaaaaa70110000000000000000
+0888880108887701077777011999999173b337b333b3bb3317777771771177771177711b7711777707aa7a7007aa7a7011107aa7a7aa70110000000000000000
+108880111088701110777011999ffff9b733bb3b7333bb3377771777777777711777711b7777777107aaaa7007aaaa7011107aaaaaaa70110000000000000000
+11080111110801111107011199f2ff29b7b3bb33b733bb3377177717717771777717771b71777177097777900977779011109777777790110000000000000000
+11101111111011111110111119fffff13bb3b33b3bb3b33717777771771177771777177b77117777099999900999999011109999999990110000000000000000
+1111111111111111111111111173371133b3b3b333b3b37b1171771171111717bbbb771b71111717099999900999999011109999999990110000000000000000
+111111111111111111111111111111117b333bb37b333bb31111111111111111111100001110a011090000900999999011109999999990110000000000000000
+1888888119999991155555511eeeeee137b33bb337b33bb301111111111111111110aaa0110a9901090940900999999011109999999990110000000000000000
+888888889999999955555555eeeeeeee3b7b3b333bbb3b330000000111999911110a9990110a9901040940400499994011104999999940110000000000000000
+888ffff8999ffff9555ffff5eeeffffe33bb333733bb333750aaaaa01999999110a99990110a9901040940400444444011104444444440110000000000000000
+88f0ff0899f2ff2955f2ff25eef2ff2eb3bb337b3b3b33735099999a999ffff90a999901110a9901040940400444444011104444444440110000000000000000
+18fffff119fffff115fffff11efffff1bb3b3bb33bb33bb35099999099f2ff2900999011110a9901040940400444444011104444444440110000000000000000
+11333311113333111133331111333311bb3b3b3b3bb33bb30000000119fffff15509011111000001550940555544445511155444444450110000000000000000
+117117111171171111711711117117113b33333bb3b33b3301111111117337115500111110055500150940511555555111115555555551110000000000000000
+11111111cccccccc000000000000044477777777777777777a99999995a9990077777777777777777a99999995a9900011111111111111111111111111111111
+11111111c6cc6ccc0aa9999999999aa4aaaaaaaaaaaaaaaa7a99999995a99900aaaaaaaaaaaaaaa77a99999995a9000011133111111331111113311111111111
+11111111616616cc0a999999999999a09aa9999999aa99997a999999959a99009aa99999a99990a77a99999995a0009911133111113a73111113311111133111
+111111111111116c099999999999999099999999999999997a999999959a990099999999999900a77a99999995000999133a7331133aa331133a733113133131
+11111111111116cc099999999999999099999999999999997aa9909995a9990099900999999000a77aa99099900099aa133aa33113133131133aa331133a7331
+1111111111116ccc099999999999999099999999990099997aa9909995a9990099999999990009a77aa99099000aaa99111331111113311111133111113aa311
+1111111111116ccc0aaaaaaaaaaaaaa099999999999999997a99999995a9090099999999900099a77a9999900055555511133111111111111113311111133111
+11111111111116cc044444444444444099900999999999997a99999995a9090090099999000999a77a9999000999999911111111111111111111111111111111
+1111111611111116044444222244444099999999999999997a999999959a990099999990009999a77a9990009999900911111111111111111110001100000000
+1111116c1111166c044444444444444055555555555555557a999999959a990055555500099999a77a9900099999999911111111111111111106660100000000
+111116cc111166cc0999999999999990aaaaaa99aaaa99aa7a99999995a9990099aaa00099099aa77a9000999999999911111111111111111066766000000000
+111166cc111666cc0444444444444440999999aa9999aa997a99999095a99900aa99000999099aa77a0009999990099931111311131113110666776000000000
+1111166c1111666c004444222244440090099999009999997a99999095a9990099900059999999a77a0099999999999913113111131113110666666000000000
+111116cc111166cc004444444444440099999999999999997aa9999995a9090099000a59999999a77a09999a99999aa913113113131131130566665000000000
+111166cc111166cc109999999999990100000000000000007aa9999995a9090000009a59999999a77aaaaaaaaaaaaaaa11111131111111311555555100000000
+111116661111666610aaaaaaaaaaaa0100000000000000007a99999995a9990000099a59999999a7777777777777777711111131111111311111111100000000
+11111111111111110000000000000000000000000000000000999a59999999a777777777777777770099a959999999a7cccccccccccccccccccccccc00000000
+11111111111111110000000000000000000000000000000000909a5999999aa77aaaaaaaaaaaaaaa0099a95909999aa7ccccccccccccccccccc6cccc00000000
+11111111111111110000000000000000999999999999999900909a5999999aa77a00099999aa999900099a5909999aa7cccccccccccccccccc616cc600000000
+11111111111111110000000000000000999999009999900900999a59099999a77a9000999999999990009a59999099a7ccbcccccccbcccccc611166100000000
+1611611611111111000000000000000099aa9999aa99999900999a59099999a77a9900099999999999000a59999099a7cbcccccccbcccccccc61111100000000
+66666616611111110000000000000000aa99aaaa99aaaaaa00999a59999999a77a99900099009999aaa00059999999a7cbccccbccbcccbcccc61111100000000
+6cc6cc6cc6111111000000000000000055555555555555550099a959999999a77a9999000999999955550009999999a7cccccbcccccccbccc611111100000000
+cccccccccc611111000000000000000099999999999999990099a959999999a77aa999900099999999999000999999a7cccccbcccccccbcccc61111100000000
+cccccccccc611111cccccccc11111116999999999990099900909a59999999a77a999999000999999999990009999aa7c6111111cc611111ccc11111cc666111
+ccccccccccc61111c6cc6cc61111116c999999999999999900909a59999999a77a9999999000555599999990009999a7c6111111cc611111ccc11111cc666111
+ccccccccccc6111161666666111116cc999900999999999900999a5999099aa77a99999995000aaa99990099000999a7cc611111ccc61111cccc1111ccc66611
+cccccccccc61111161161161111166cc999999999999999900999a5999099aa77a99099995a0009999999999900099a7ccc61111cccc6111ccccc111cccc6661
+ccccccccc6111111111111111111166c99999999999999990099a959999999a77a99099995a9000999999999990009a7ccc61111cccc6111ccccc111cccc6661
+cccccccccc61661611111111111116cc9999aa9999999aa90099a959999999a77aa9999095a990009999aa99999000a7cc611111ccc61111cccc1111ccc66611
+ccccccccccc6cc6c11111111111166ccaaaaaaaaaaaaaaaa00999a59999999a77aa99990959a9900aaaaaaaaaaaaaaa7c6111111cc611111ccc11111cc666111
+cccccccccccccccc1111111111111666777777777777777700999a59999999a77a999999959a99007777777777777777cc611111ccc61111cccc1111ccc66611
+bbb33bbbbbbbb333333bbbbb333bb3b033ab0333bbbbbbbbbbbbb9bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb4444bbbbbbbbbbbbbbbbbbbbbb
+bb30b3bbbbbb33333333bbbb33330033b3003333bbbbbbbbbbbb9bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb44999944bbbbbbbbbbbbbbbbbbbb
+b33b330bbbb3a3baab333bbbab3330033033a3babb224444444944bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb4494aaa94944bbbbbbbbbbbbbbbbbb
+b03aa33bbb3b3baaaab033bbaab03330333b3baab22229949994944bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb449494aaaa444944bbbbbbbbbbbbbbbb
+33b5ab33b33300baab03b33bab03b330033300bab20222244244224bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb44949444aaa949494944bbbbbbbbbbbbbb
+303bb300b3ab333333bb003b33bb003003ab3333b22024442444441bbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbb4494949494aaaa4949444944bbbbbbbbbbbb
+03bb0b30b300bb330300333b030033344300bb33b02242022220223bbbbbbbbbb3bb3b3bb33bb3bbbbbbbbbbbb449494949494aaaa494449494944bbbbbbbbbb
+3003b330b0b30033333ab30b333ab30000b300333300000000000033bbbbbbbb333bb33333bb333bbbbbbbbb449494449444a444444a494949444944bbbbbbbb
+0b333000b30bb3b033ab003b33ab0333333bb3b0bbbbbbbbbbbbbbbbbbbbbbb333333333333333333bbbbbbb2494949494a4442222444a4944494942bbbbbbbb
+00b3bb00b0000033b300300bb300333333330033bbbbbbbbbbb3bbbbbbbbbb3333333b33bb33333333bbbbbb44949494a44422000022444a49494944bbbbbbbb
+30333303bb00b003303300bb3033a3baab333003bbbb88bbb33bbbbbbbbbbbb333bb3bb3bb3b33b33bbbbbbb249444a444220000000022444a494442bbbbbbbb
+b300003bbbb0003033000bbb333b3baaaab03330bbb8f88bbbbb3bbbbbbbb3bb333bbbbbbbbbbbb3bb3bbbbb2494a4442200002222000022444a4942bbbbbbbb
+bb3223bbbbb3000000003bbb033300baab03b330bbb2882bbbbbb33bbbbbb33b3bbbbbbbbbbbbb33b33bbbbb24a44422000022222222000022444a42bbbbbbbb
+bb0442bbbb304200002403bb03ab333333bb0030b2bb22bbbb3bbbbbbbbbbbb33bbbbbbbbbbbbbb33bbbbbbb24442200002222244222220000224442bbbbbbbb
+30434403b30420244202403b4300bb3303003334b3b3223bbbb3bbbbbbbbbb333bbbbbbbbbbbbb3333bbbbbb24220000222224444442222200002242bbbbbbbb
+b333033bbb330440044033bb00b30033333ab300bbbb33bbbbbbbbbbbbbbbbb333bbbbbbbbbbb3333bbbbbbb20000022222444444444422222000002bbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb88bbb33333333bbbbbbb3333bbbbbbbbbbb333bbbbbbb00000222244444444444444222200000bbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb8f82bb3b333333bbbbbb333bbbbbbbbbbbbbb333bbbbbbb002022444000044444000444220200bbbbbbbbb
+bbbbbdddddddbbbbbbbbbbbbbbbddbbbbbbbddbbbb8882bb33bb3333bbbbbb3b33bbbbbbbbbbbb33b3bbbbbbbb0220444000000444000004440220bbbbbbbbbb
+bbbbdd6d666ddbbbbbbbbbbbbdd66dbbbbbd6ddbb8888e2b33333b33bbbbbbbb333bbbbbbbbbb333bbbbbbbbb302242240000004440000042242203bbbbbbbbb
+bbbddddddd66ddbbbbbbbbbbd666d55bbbd6dd5bb8f8222b333bb333bbbbbbb333bbbbbbbbbbbbb33bbbbbbbb300244440000904440000044442003bbbbbbbbb
+bbdddddddddd6ddbbbbbbbbd66ddd55bb35dd553bb8222bb333333b3bbbbbb333bbbb33b3bbbbb3333bbbbbb3302024440000404442222244420203bbbbbbbbb
+bb55dddddd55dddbbbbbbbd66ddd555bbb35553bbb3003bb3bb33b33bbbbbbb333b3bb3b3b3b3b333bbbbbbb3330042240000004444444442240033bbbbbbbbb
+b5555ddd66dd555bbbbbbd6ddddd55bbbbbbbbbbb322223b33333333bbbbbbbb3333333333333333bbbbbbbbb333300440000004424224244003333bbbbbbbbb
+b55dd5d66dd5055bbbbbdddd5dd550bbbbbbbbbb3333333333333333bbbbbbbb333bb333b33bb333b44bb44b333bb3b033ab0344443bb3b033ab0333bbbbbbbb
+b050dddddd55055bbbbdd6dd05555bbbbbbdddbb3333333333333333bbbbb3bbb3bb3b3bbb33bb3b9999999933330033b300449999440033b3003333bbbbbbbb
+33050dddd5555033bbbdddddd0550bbbbbdd6ddb3333333333333b33bb333bbbbbb33bbbbbbbbbbb44444444ab333003304494aaa94944033033a3babbbbbbbb
+b33000555500033bb330ddd555503333bdddd5db33333333333bbb33b33333bbbbbbbbbbbbbbbbbb42242424aab03330449494aaaa444944333b3baabbbbbbbb
+bb333300003333bbbb333000000333bbb5d5555b3333333333bbbbb3b333333bbbbbbbbbbbbbbbbb42422424ab03b344949444aaa9494949443300babbbbbbbb
+bbbb33333333bbbbbbbb33333333bbbb335000333333333333bbb333bb3333bbbbbbbbbbbbbbbbbb4444444433bb4494949494aaaa49494449443333bbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3333bb3333333333333333bbbb3bbbbbbbbbbbbbbbbbbbb22bb22b03449494949494aaaa49444949494433bbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3333333333333333bbbbbbbbbbbbbbbbbbbbbbbb32233223449494449444a444444a494949444944bbbbbbbb
+__label__
+66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
+60000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006
+60000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006
+60000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006
+60000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006
+60000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006
+60000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006
+66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
+66666666bbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bb3bb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bb33bbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bb3bbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bb33bbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bb3bb3bbbbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbb33bbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbb3bbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bb3bbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb33bbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3bbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb999bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb9bbb9bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb9bbb9bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb9bbb9bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb999bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb999b9b99bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb9999bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb9bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+60000006bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb60000006
+66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb66666666
+66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
+60000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006600000066000000660000006
+77717171111111117771111177717171111111117771111177717171111111117771111177717171111111117771111111111111111111111111111111111111
+77717171171111117171111177717171171111117171111171717171171111117171111171717171171111117171111111111111111111111111111111111111
+71717771111111117171111171711711111111117171111177111711111111117171111177117771111111117171111111111111111111111111111111111111
+71711171171111117171111171717171171111117171111171717171171111117171111171711171171111117171111111111111111111111111111111111111
+71717771111111117771111171717171111111117771111177717171111111117771111177717771111111117771111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+
+__gff__
+00000000000000000000000000000000000000000000000000000101010101000000000000000000000001010000000000000000000000000000010101010000000001010101010101010101303030309090010101010101010101019090010100000000010101010101010190900001000000000101010101010101b0b0b0b0
+0101010101010100000000010101010001010101010000000000000101010100010101010100000000000001010101000101010101000000000001010101010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__map__
+8183848384838483848384838483848384838483444544454445444544454445686944454445444544454445444548490000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+9193949394939493949394939493949394939493949394939455545554555455787954555455545554555455545558590000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+8091929192919291929192919291929192919291929192919225242524252425464700000000000000000000000066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+905700000000005e3434353434343435a2a381823435343534353435343534355657005c00005c00004c0000000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4647a2a300000024252425004c003435b2b39192242524252425242524252425464761000000000000000000000066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5657b2b3000000343534354c4c8788003435343534353435343534353435343556577161004c000000000000005c76770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+464770715c0000005c0000000097980024252425242524252425245e24252425464770715c0000005c004c00000066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+565770707c000000000000000000000034353435343534353435343534353435000070707c00000000000000000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4647706c716061b400000000000000a4242524252425242524252425242524250000706c71606100000000005c0066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5657707070707c00004c000000000000343534353435343534353435343534350000707070707c00004c0000000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4647706c707071606100000000000000242524252425242524252425242524254647706c7070716061000000000066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+56577070707070707c000000000000003435343534353435343534353435343556577070707070707c005c00000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+46477070706c707071606060606100002425242524252425242524252425242546477070706c7070716100004c0066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+56577070707070707070706c707c000034353435343534353435345e34353435565770707070707070716100000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+464770707070706c70707070707c000024252425245e242524252425252424254a4b6565656565656565656565656a6b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+565770707070707070706c70707c00005e3534353435343534353435353434355a5b7474747474747474747474747a7b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+464770706c70707070707070707c00005e5e0000000000454445444544454849686944454445444544454445444548490000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+565770707070707070707070707c00005e000000000000555455545554555859787954555455545554555455545558590000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+46477070706e727272727272720000005e000000000000000000000000006667464700000000000000000000000066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+56577070707c5c0000000000000000000000005c00005c00004c0000000076775657005c00005c00004c0000000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4647706c707c0000000000000000000000006100000000000000000000006667464761000000000000000000000066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+56577070707c000000000000005c767756577161004c000000000000005c767756577161004c000000000000005c76770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+46477070707c00005c004c0000006667464770715c0000005c004c0000006667464770715c0000005c004c00000066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+56577070707c00000000000000007677565770707c0000000000000000007677565770707c00000000000000000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4647706c70716100005e00005c0066674647706c71606100000000005c0066674647706c71606100000000005c0066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5657707070707c00004c0000000076775657707070707c00004c0000000076775657707070707c00004c0000000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4647706c7070716061000000000066674647706c7070716061000000000066674647706c7070716061000000000066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+56577070707070707c005c000000767756577070707070707c005c000000767756577070707070707c005c00000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+46477070706c7070716100004c00666746477070706c7070716100004c00666746477070706c7070716100004c0066670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5657707070707070707161000000767756577070707070707071610000007677565770707070707070716100000076770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4a4b6565656565656565656565656a6b4a4b6565656565656565656565656a6b4a4b6565656565656565656565656a6b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5a5b7474747474747474747474747a7b5a5b7474747474747474747474747a7b5a5b7474747474747474747474747a7b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__sfx__
+000100000c0700c0700c0700b0700a07009070070600506000050070500600005000030300203002020010200001000010160001b0001a0001a0001a000100001000010000100001000010000100001100000000
+011000101c55500005000051b5551c555000051e555000051f555000051e055000051b05500005000050000500005000050000500005000050000500005000050000500005000050000500005000050000500005
+011000101c0172001723017280171f0172001723017280171c0172001723017280171c01720017230172801700007000070000700007000070000700007000070000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+002000001885000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__music__
+02 01024344
+
