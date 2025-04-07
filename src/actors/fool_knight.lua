@@ -1,13 +1,13 @@
 birth_sprite = animated_sprite.pre_create({
+	{ 35, 15 },
+	{ 36, 7 },
+	{ 37, 7 },
 	{ 38, 15 },
-	{ 39, 7 },
-	{ 40, 7 },
-	{ 41, 15 },
 }, false);
 
 fool_idle = animated_sprite.pre_create({
-	{ 49, 30 },
-	{ 35, 30 },
+	{ 32, 30 },
+	{ 33, 30 },
 }, true);
 
 fool_knight = actor:new {
@@ -36,10 +36,10 @@ fool_knight = actor:new {
 		mv = vecUp() * 0.25
 
 		body = animated_sprite(pos, {
-			{ 41, 15 },
-			{ 40, 7 },
-			{ 39, 7 },
-			{ 38, 60 },
+			{ 38, 15 },
+			{ 37, 7 },
+			{ 36, 7 },
+			{ 35, 15 },
 		})
 
 		yieldUntil(function() return body.done end)
