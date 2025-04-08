@@ -1,8 +1,35 @@
+knight_birth_sprite = animated_sprite.pre_create_str([[
+	 51, 15,
+	 52, 7,
+	 53, 7,
+	 54, 15,
+]]);
+
+knight_dying_sprite = animated_sprite.pre_create_str([[
+	 54, 15,
+	 53, 7,
+	 52, 7,
+	 51, 15,
+]]);
+
+knight_idle = animated_sprite.pre_create_str([[
+	48, 30,
+	49, 30,
+]], true);
+
 knight = actor:new {
 	NAME = 'knight',
 	tileId = 48,
 
-	initial_state = 'wander',
+	initial_state = 'birth',
+
+	birth = function(_ENV)
+		body = knight_birth_sprite(pos)
+		body:yeildUntilDone()
+
+		body = knight_idle(pos)
+		return 'wander'
+	end,
 
 	wander = function(_ENV)
 		repeat
@@ -39,10 +66,11 @@ knight = actor:new {
 	end,
 
 	dying = function(_ENV)
-		repeat
-			mv = vecDown() * 0.25
-			wait_internal(.5 * FPS)
-			del(actors, _ENV)
-		until false
+		mv = vecUp() * 0.25
+
+		body = knight_dying_sprite(pos)
+		body:yeildUntilDone()
+
+		del(actors, _ENV)
 	end
 }

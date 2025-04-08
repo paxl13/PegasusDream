@@ -58,8 +58,9 @@ animated_sprite = sprite:new {
 	end
 }
 
-animated_sprite.pre_create = function(a_table, loop)
+animated_sprite.pre_create_str = function(anim_s, loop)
+	local anim = split2(anim_s)
 	return function(pos)
-		return animated_sprite(pos, a_table, loop)
+		return animated_sprite(pos, anim, loop)
 	end
 end
