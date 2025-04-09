@@ -10,9 +10,9 @@ vec2 = class {
 
 		if (l < 0.1) then
 			return vec2(0, 0)
-		else
-			return (self / l) * len
 		end
+
+		return (self / l) * len
 	end,
 
 	add = function(self, i, j)

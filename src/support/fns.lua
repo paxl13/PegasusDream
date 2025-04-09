@@ -14,18 +14,6 @@ function invoke(name)
 	end
 end
 
--- function get(name)
--- 	return function(o)
--- 		return o[name]
--- 	end
--- end
-
--- function id(val)
--- 	return function()
--- 		return val;
--- 	end
--- end
-
 function format2(n)
 	local s =
 			flr(n) .. "." ..
@@ -37,7 +25,7 @@ function format2(n)
 	return s
 end
 
-function i2(s)
+function indent2(s)
 	local l = split(s, '\n')
 	local rv = ''
 	for i = 1, #l - 1 do
@@ -48,7 +36,7 @@ end
 
 function ifn(v)
 	if type(v) == 'table' then
-		return i2(tostr(v))
+		return indent2(tostr(v))
 	end
 
 	return tostr(v)

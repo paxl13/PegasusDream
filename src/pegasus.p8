@@ -10,8 +10,8 @@ __lua__
 --[[const]] FPS=60
 --[[const]] no_enemies=false
 
-#include support/fns.lua
 #include support/class.lua
+#include support/fns.lua
 
 #include support/vec2.lua
 #include support/rect2.lua
