@@ -1,5 +1,5 @@
 function inrng(...)
-	return min(...) == ...
+	return mid(...) == ...
 end
 
 function d(...)

@@ -12,10 +12,12 @@ knight_dying_sprite = animated_sprite.pre_create_str([[
 	 51, 15,
 ]]);
 
-knight_idle = animated_sprite.pre_create_str([[
-	48, 30,
-	49, 30,
-]], true);
+knight_body = directional_animated_sprite.pre_create_str(
+	[[ 217, 10, 218, 10, 219, 10 ]], -- up
+	[[ 201, 10, 202, 10, 203, 10 ]], -- down
+	[[ 249, 10, 250, 10, 251, 10 ]], -- left
+	[[ 233, 10, 234, 10, 235, 10 ]] -- right
+);
 
 knight = actor:new {
 	NAME = 'knight',
@@ -23,11 +25,23 @@ knight = actor:new {
 
 	initial_state = 'birth',
 
+	create = function(...)
+		local tbl = actor.create(...)
+		tbl.palette = {
+			[12] = flr(rnd(16)),
+		}
+		return tbl
+	end,
+
 	birth = function(_ENV)
 		body = knight_birth_sprite(pos)
+		body:setPal(palette)
+
+
 		body:yeildUntilDone()
 
-		body = knight_idle(pos)
+		body = knight_body(pos)
+		body:setPal(palette)
 		return 'wander'
 	end,
 
@@ -69,6 +83,7 @@ knight = actor:new {
 		mv = vecUp() * 0.25
 
 		body = knight_dying_sprite(pos)
+		body:setPal(palette)
 		body:yeildUntilDone()
 
 		del(actors, _ENV)

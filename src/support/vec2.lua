@@ -8,10 +8,10 @@ vec2 = class {
 
 		local l = #self;
 
-		if (len < 0.1) then
+		if (l < 0.1) then
 			return vec2(0, 0)
 		else
-			return self / l * len
+			return (self / l) * len
 		end
 	end,
 
@@ -36,6 +36,15 @@ vec2 = class {
 	random = function(self, len)
 		len = len or 1
 		return self:fromAngle(rnd(1), len)
+	end,
+
+	getAngle = function(self)
+		return atan2(self.x, self.y)
+	end,
+
+	set = function(self, i, j)
+		self.x = i
+		self.y = j
 	end,
 
 	create = function(self, x, y)

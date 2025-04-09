@@ -35,13 +35,12 @@ actor = class {
 	end,
 
 	update = function(_ENV)
-		body:update()
-
 		mv, colided = process_map_colision(
 			mask:offset(pos()),
 			mv
 		)
 
+		body:update(pos, mv)
 		pos:add(mv())
 	end,
 

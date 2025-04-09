@@ -12,9 +12,9 @@ fool_dying_sprite = animated_sprite.pre_create_str([[
 	 35, 15,
 ]], false);
 
-fool_idle = animated_sprite.pre_create_str([[
-	 32, 30,
-	 33, 30,
+fool_body = animated_sprite.pre_create_str([[
+	32, 30,
+	33, 30,
 ]], true);
 
 fool_knight = actor:new {
@@ -22,11 +22,21 @@ fool_knight = actor:new {
 	tileId = 49,
 	initial_state = 'birth',
 
+	create = function(...)
+		local tbl = actor.create(...)
+		tbl.palette = {
+			[9] = flr(rnd(16)),
+		}
+		return tbl
+	end,
+
 	birth = function(_ENV)
 		body = fool_birth_sprite(pos)
+		body:setPal(palette)
 		body:yeildUntilDone()
 
-		body = fool_idle(pos)
+		body = fool_body(pos, mv)
+		body:setPal(palette)
 		return 'wander'
 	end,
 
@@ -43,6 +53,7 @@ fool_knight = actor:new {
 		mv = vecUp() * 0.25
 
 		body = fool_dying_sprite(pos)
+		body:setPal(palette)
 		body:yeildUntilDone()
 
 		del(actors, _ENV)
