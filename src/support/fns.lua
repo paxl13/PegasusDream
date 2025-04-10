@@ -1,3 +1,4 @@
+-- inrng(value, min, max)
 function inrng(...)
 	return mid(...) == ...
 end
@@ -69,47 +70,7 @@ function toward_player(_ENV, len)
 	return v:normalize(len)
 end
 
--- function moveToward(x, y, t)
--- 	return function(_ENV)
--- 		mv = vec2(x, y)
--- 		wait_internal(t)
--- 	end
--- end
-
--- function set_(key, fnOrV)
--- 	if type(fnOrV) == 'function' then
--- 		return function(self)
--- 			self[key] = fnOrV(self)
--- 		end
--- 	end
-
--- 	return function(self)
--- 		self[key] = fnOrV
--- 	end
--- end
-
--- function add_mv(fn)
--- 	return function(_ENV)
--- 		mv += fn(_ENV)
--- 	end
--- end
-
--- function untilMapCollision_(_ENV)
--- 	repeat
--- 		yield()
--- 	until colided
--- end
-
--- function pipe_(f_list)
--- 	local outArgs = {}
-
--- 	return function(self)
--- 		for fn in all(f_list)
--- 		do
--- 			outArgs = pack(fn(self, unpack(outArgs)))
--- 		end
--- 	end
--- end
+-- CoRoutines Helpers
 
 function onceEvery(cnt, fn)
 	if (framectr % cnt == 1) then
@@ -128,6 +89,8 @@ function forever(fn)
 	end
 end
 
+-- Table helpers
+
 function split2(s)
 	local t = split(s)
 	local len, rv, i = #t, {}, 1
@@ -140,8 +103,11 @@ function split2(s)
 	return rv
 end
 
--- function yieldUntil(fn)
--- 	repeat
--- 		yield()
--- 	until fn()
--- end
+function delIf(tbl, fn)
+	for i in all(tbl) do
+		if fn(i) then
+			d('deleting')
+			del(tbl, i)
+		end
+	end
+end
