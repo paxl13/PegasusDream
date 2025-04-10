@@ -1,3 +1,46 @@
+
+-- function moveToward(x, y, t)
+-- 	return function(_ENV)
+-- 		mv = vec2(x, y)
+-- 		wait_internal(t)
+-- 	end
+-- end
+
+-- function set_(key, fnOrV)
+-- 	if type(fnOrV) == 'function' then
+-- 		return function(self)
+-- 			self[key] = fnOrV(self)
+-- 		end
+-- 	end
+
+-- 	return function(self)
+-- 		self[key] = fnOrV
+-- 	end
+-- end
+
+-- function add_mv(fn)
+-- 	return function(_ENV)
+-- 		mv += fn(_ENV)
+-- 	end
+-- end
+
+-- function untilMapCollision_(_ENV)
+-- 	repeat
+-- 		yield()
+-- 	until colided
+-- end
+
+-- function pipe_(f_list)
+-- 	local outArgs = {}
+
+-- 	return function(self)
+-- 		for fn in all(f_list)
+-- 		do
+-- 			outArgs = pack(fn(self, unpack(outArgs)))
+-- 		end
+-- 	end
+-- end
+--
 function round(v)
   local z = v & 0x0.ffff
   if z < 0.5 then

@@ -11,7 +11,6 @@ find src/ | entr -s ' \
     --no-lint-unused-global \
     --no-lint-fail \
     --script ./preprocessor/splitkeys.py \
-    --count --input-count \
     -m --rename-safe-only \
     --no-minify-lines \
     src/pegasus.p8 \
