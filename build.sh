@@ -8,7 +8,12 @@ shrinko8 \
   src/pegasus.p8 \
   bin/index.js
 
-# pico8 -root_dir . ./src/pegasus.p8 -export bin/index.html -root_dir . ./src/pegasus.p8 -export bin/index.html
+shrinko8 \
+  --count \
+  --const DEBUG false \
+  src/pegasus.p8 \
+  bin/pegasus.p8.png
 
 git add bin/index.js
+git add bin/pegasus.p8.png
 git commit -m "Update bin"
