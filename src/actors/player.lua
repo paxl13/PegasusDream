@@ -19,8 +19,6 @@ player = actor:new {
 	mv = vecNil(),
 	cors = {},
 
-	initial_state = 'behavior',
-
 	sword_anim = {
 		{ 17, vec2(8, 0),   false, false },
 		{ 18, vec2(4, -4),  false, false },
@@ -38,7 +36,7 @@ player = actor:new {
 
 		sword = entityNil
 
-		add(cors, _ENV:start_state('normal'))
+		_ENV:change_state('normal')
 		status = 'normal'
 	end,
 

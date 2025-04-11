@@ -34,7 +34,7 @@ function _init()
 	actors={}
 
 	if ENNY then
-		for _=1,10 do
+		for _=1,40 do
 			local kind = rnd({knight, fool_knight})
 			add(actors, kind(getRandomTile()))
 		end

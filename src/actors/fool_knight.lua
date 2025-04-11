@@ -40,14 +40,14 @@ fool_knight = actor:new {
 	-- 	yield()
 	-- end),
 
-	blink_red = forever(function(_ENV)
-		body:setPal({ [9] = 8 })
-		wait_internal(30)
-		body:setPal(palette)
-		wait_internal(30)
+	-- blink_red = forever(function(_ENV)
+	-- body:setPal({ [9] = 8 })
+	-- wait_internal(30)
+	-- body:setPal(palette)
+	-- wait_internal(30)
 
-		return {}
-	end),
+	-- return {}
+	-- end),
 
 	birth = function(_ENV)
 		body = fool_birth_sprite(pos)
@@ -56,7 +56,7 @@ fool_knight = actor:new {
 
 		body = fool_body(pos, mv)
 		body:setPal(palette)
-		return { 'wander' }
+		return 'wander'
 	end,
 
 	wander = forever(function(_ENV)

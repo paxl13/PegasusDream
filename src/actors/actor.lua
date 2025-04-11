@@ -14,39 +14,28 @@ actor = class {
 		local tbl = class.new(self, {
 			pos = pos,
 			body = sprite(pos, self.tileId),
-			cors = {}
 		})
-		add(tbl.cors, tbl:start_state(tbl.initial_state))
+		tbl:change_state(tbl.initial_state)
 
 		return tbl
 	end,
 
 	input = function(_ENV)
 		if DEBUG_PRINT then
-			d('actor: ' .. NAME)
-			foreach(cors, function(co)
-				d('co: -- ' .. co.name)
-			end)
-			d('------------------')
+			d('actor: ' .. NAME .. 'in state: ' .. current_state)
 		end
 
-		foreach(cors, function(co)
-			local new_states = resume(co.fn, _ENV)
-
-			if (new_states) then
-				del(cors, co);
-
-				local states = type(new_states) == 'table' and new_states or { new_states }
-				foreach(states, function(state)
-					add(cors, _ENV:start_state(state))
-				end)
-			end
-		end)
+		local ns = resume(state_co, _ENV)
+		if ns then
+			_ENV:change_state(ns)
+		end
 	end,
 
-	start_state = function(_ENV, name)
-		local state_fn = _ENV[name];
-		return { name = name, fn = cocreate(state_fn) }
+	change_state = function(self, name)
+		local state_fn = self[name];
+		d(self)
+		self.state_co = cocreate(state_fn)
+		self.current_state = name
 	end,
 
 	update = function(_ENV)
@@ -61,8 +50,8 @@ actor = class {
 
 	attacked = function(_ENV)
 		d('attacked')
-		delIf(cors, function(t) return t.name == 'blink_red' end)
-		add(cors, _ENV:start_state('blink_red'))
+		-- delIf(cors, function(t) return t.name == 'blink_red' end)
+		-- add(cors, _ENV:start_state('blink_red'))
 	end,
 
 	draw = function(_ENV)
