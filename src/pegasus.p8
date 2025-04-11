@@ -5,10 +5,11 @@ __lua__
 
 -- CONSTANTS
 --[[const]] DEBUG=true
+--[[const]] DEBUG_PRINT=false
 --[[const]] MASK=false
 --[[const]] MV=false
 --[[const]] FPS=60
---[[const]] no_enemies=false
+--[[const]] ENNY=true
 
 #include support/class.lua
 #include support/fns.lua
@@ -16,12 +17,15 @@ __lua__
 #include support/vec2.lua
 #include support/rect2.lua
 
-#include support/sprite.lua
 #include support/io.lua
+
+#include entities/entity.lua
+#include entities/sprite.lua
 
 #include actors/actor.lua
 #include actors/knight.lua
 #include actors/fool_knight.lua
+#include actors/player.lua
 
 function _init()
 	d('---INIT----')
@@ -29,17 +33,17 @@ function _init()
 
 	actors={}
 
-	if not no_enemies then
-		for _=1,40 do
+	if ENNY then
+		for _=1,10 do
 			local kind = rnd({knight, fool_knight})
 			add(actors, kind(getRandomTile()))
 		end
 	end
 
-		add(actors, knight(getRandomTile()))
-		add(actors, fool_knight(48,48))
+  -- add(actors, knight(getRandomTile()))
+	-- add(actors, fool_knight(48,48))
 
-	sfx(0)
+	-- sfx(0)
 end
 
 function _update60()
@@ -61,7 +65,7 @@ function _update60()
 		points:update()
 
 		onceEvery(10, function()
-				hud:set('#mv', format2(#player.mv))
+				hud:set('#mv', flr(#player.mv*100)/100)
 
 				-- pad string
 				local cpuDisp = tostr(flr(stat(1)*100))
@@ -184,226 +188,6 @@ end
 -->8
 -- player classes
 --
-
-player=class{
-	NAME='player',
-
-	sword_anim={
-		{17, vec2(8,0),false,false},
-		{18, vec2(4,-4),false,false},
-		{19, vec2(0,-8),false,false},
-		{18, vec2(-4,-4),true,false},
-		{17, vec2(-8,0),true,false},
-		{18, vec2(-4,4),true,true},
-		{19, vec2(0,8),false,true},
-		{18, vec2(4,4),false,true},
-	},
-
-	initialize=function(_ENV)
-		pos=vec2(64,64)
-		mv=vec2(0,0)
-		mask=rect2(0,0,7,7)
-		direction=vec2(0,0)
-
-		colided=false
-
-		body=sprite(pos, 16)
-
-		update_cor=cocreate(behavior)
-		status='normal'
-	end,
-
-	behavior=function (_ENV)
-		boostFrames=0
-		if io.x then
-			status='charging'
-
-			repeat
-				boostFrames+=1
-				yield()
-				if (boostFrames >= 16) then
-					mv=vecNil()
-				end
-			until (not io.x or boostFrames > 60)
-			if boostFrames < 16 then
-				status = 'attack'
-				atk_fr = 0
-			elseif boostFrames > 60 then
-				status = 'boost'
-			else
-				status = 'normal'
-			end
-
-			boostFrames=0
-		end
-		
-		-- state machine based on 'status'
-		if status == 'normal' then
-			mv+=io.norm
-
-			if(mv:sq_len()>1) then 
-				mv=mv:normalize()
-			end
-
-			if io.nodir then mv=mv*0.95 end
-		end
-
-		if status == 'boost' then
-			repeat
-				mv=(mv+(io.norm*0.15)):normalize(3)
-				yield()
-			until colided
-			foreach(actors, function (act) act.was_hit = false end)
-
-			status = 'normal'
-		end
-
-		if status == 'attack' then
-			-- local angle = atan2(mv.x, mv.y)
-			local angle = atan2(io.vec())
-			local initial_fr = flr(angle*#sword_anim)-(#sword_anim\4)
-
-			atk_fr = initial_fr;
-			repeat
-				mv+=io.norm*0.15
-
-				if(mv:sq_len()>0.5*0.5) then 
-					mv=mv:normalize(0.5)
-				end
-
-				atk_fr+=0.3
-				yield()
-			until atk_fr >= initial_fr+(#sword_anim\2)+0.3
-			foreach(actors, function (act) act.was_hit = false end)
-			status = 'normal'
-		end
-
-	end,
-	
-	input=function (_ENV)
-		if costatus(update_cor) == 'dead' then
-			update_cor=cocreate(behavior)
-		end
-		assert(coresume(update_cor, _ENV))
-	end,
-
-	update=function (_ENV)
-		if status == 'attack' or status == 'boost' then
-			sw_mask = _ENV:getSwordMask(atk_fr):offset(pos())
-			for act in all(actors) do
-				if not act.was_hit then
-					local has_hit = testRectIntersection(sw_mask, act.mask:offset(act.pos()))
-					if has_hit then
-						act:attacked()
-						 -- act.health -= 1
-						 -- if act.health <= 0 then
-						 -- 	del(actors, act)
-						 -- else 
-							-- -- act.mv *= -1
-							-- d('act mv:'..tostr(act.mv))
-							-- act.mv:add((mv:normalize(3))())
-							-- d('modified act mv:'..tostr(act.mv))
-							-- act.was_hit=true;
-						-- end
-					end
-				end
-			end
-		end
-
-		mv,colided=process_map_colision(
-			mask:offset(pos()),
-			mv
-		)
-
-		pos:add(mv())
-	end,
-
-	drawArrow=function(_ENV)
-		if (boostFrames>16) then
-			local x,y=pos()
-			local mult=1+boostFrames/20
-			local sx=8*mult
-
-			local acol={
-				10,
-				9,
-				8
-			}
-			local col=acol[flr(mult)]
-			
-			pal(9, col)
-			if (io.vec.y~=0) then
-				sspr(
-					32,8,
-					7,7,
-					(x+4)-(sx/2),(y+4)-(sx/2),
-					sx,sx,
-					false,io.vec.y>0		
-				)
-			else
-				sspr(
-					40,8,
-					7,7,
-					(x+4)-(sx/2),(y+4)-(sx/2),
-					sx,sx,
-					io.vec.x>0,false		
-				)
-			end
-			pal(9,9)		
-		end
-	end,
-
-	drawBoostSword=function(_ENV)
-		local angle = atan2(mv.x, mv.y)
-		angle+=0.0625 -- 1/16
-		_ENV:drawSword(flr(angle*#sword_anim))
-	end,
-
-	drawSword=function(_ENV, frame)
-		local s_id,offset,flip_x,flip_y=
-			unpack(sword_anim[flr(frame)%#sword_anim+1]);
-		s_pos=pos+offset
-		sspr(
-			(s_id % 16) * 8, (s_id \ 16) * 8, 
-			8,8,
-			s_pos.x, s_pos.y,
-			8,8,
-			flip_x,
-			flip_y
-		)
-	end,
-
-	getSwordMask=function(_ENV, frame)
-		local _,offset=
-			unpack(sword_anim[flr(frame)%#sword_anim+1]);
-		
-		return rect2(
-			offset.x, offset.y,
-			offset.x+8, offset.y+8
-		)
-	end,
-
-	draw=function (_ENV)
-		-- handle pegasus arrow
-		if status == 'charging' then
-			_ENV:drawArrow()
-		end
-
-		if status == 'attack' then
-			_ENV:drawSword(atk_fr)
-		end
-
-		if status == 'boost' then
-			_ENV:drawBoostSword()
-		end
-		
-		body:draw();
-
-		if (colided) then
-			sfx(0)
-		end
-	end,
-}
 
 -->8
 -- map stuff

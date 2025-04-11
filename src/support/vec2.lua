@@ -12,7 +12,7 @@ vec2 = class {
 			return vec2(0, 0)
 		end
 
-		return (self / l) * len
+		return self * len / l
 	end,
 
 	add = function(self, i, j)

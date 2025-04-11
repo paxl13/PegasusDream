@@ -1,4 +1,77 @@
+-- old player
+	behavior=function (_ENV)
+		boostFrames=0
+		if io.x then
+			status='charging'
 
+			repeat
+				boostFrames+=1
+				yield()
+				if (boostFrames >= 16) then
+					mv=vecNil()
+				end
+			until (not io.x or boostFrames > 60)
+			if boostFrames < 16 then
+				status = 'attack'
+				atk_fr = 0
+			elseif boostFrames > 60 then
+				status = 'boost'
+			else
+				status = 'normal'
+			end
+
+			boostFrames=0
+		end
+		
+		-- state machine based on 'status'
+		if status == 'normal' then
+			mv+=io.norm
+
+			if(mv:sq_len()>1) then 
+				mv=mv:normalize()
+			end
+
+			if io.nodir then mv=mv*0.95 end
+		end
+
+		if status == 'boost' then
+			repeat
+				mv=(mv+(io.norm*0.15)):normalize(3)
+				yield()
+			until colided
+			foreach(actors, function (act) act.was_hit = false end)
+			status = 'normal'
+		end
+
+		if status == 'attack' then
+			-- local angle = atan2(mv.x, mv.y)
+			local angle = atan2(io.vec())
+			local initial_fr = flr(angle*#sword_anim)-(#sword_anim\4)
+
+			atk_fr = initial_fr;
+			repeat
+				mv+=io.norm*0.15
+
+				if(mv:sq_len()>0.5*0.5) then 
+					mv=mv:normalize(0.5)
+				end
+
+				atk_fr+=0.3
+				yield()
+			until atk_fr >= initial_fr+(#sword_anim\2)+0.3
+			foreach(actors, function (act) act.was_hit = false end)
+			status = 'normal'
+		end
+
+		return 'behavior'
+
+	end,
+	-- input=function (_ENV)
+	-- 	if costatus(update_cor) == 'dead' then
+	-- 		update_cor=cocreate(behavior)
+	-- 	end
+	-- 	assert(coresume(update_cor, _ENV))
+	-- end,
 -- function moveToward(x, y, t)
 -- 	return function(_ENV)
 -- 		mv = vec2(x, y)

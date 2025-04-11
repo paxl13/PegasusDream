@@ -37,8 +37,7 @@ knight = actor:new {
 		body = knight_birth_sprite(pos)
 		body:setPal(palette)
 
-
-		body:yeildUntilDone()
+		body:yieldUntilDone()
 
 		body = knight_body(pos)
 		body:setPal(palette)
@@ -54,7 +53,7 @@ knight = actor:new {
 			yield()
 		until (player.pos - pos):sq_len() < 20 * 20
 
-		return 'follow'
+		return { 'follow' }
 	end,
 
 	dash = function(_ENV)
@@ -67,7 +66,7 @@ knight = actor:new {
 		mv = vecNil()
 		wait_internal(1 * FPS)
 
-		return 'wander'
+		return { 'wander' }
 	end,
 
 	follow = function(_ENV)
@@ -76,15 +75,28 @@ knight = actor:new {
 			yield()
 		until #(player.pos - pos) > 40
 
-		return 'dash'
+		return { 'dash' }
 	end,
+
+	blink_red = forever(function(_ENV)
+		local i = 0
+		repeat
+			body:setPal({ [12] = 8 })
+			wait_internal(5)
+			body:setPal(palette)
+			wait_internal(5)
+
+			i += 1
+		until i == 10
+		return {}
+	end),
 
 	dying = function(_ENV)
 		mv = vecUp() * 0.25
 
 		body = knight_dying_sprite(pos)
 		body:setPal(palette)
-		body:yeildUntilDone()
+		body:yieldUntilDone()
 
 		del(actors, _ENV)
 	end

@@ -1,8 +1,8 @@
-sprite = class {
+sprite = entity:new {
 	NAME = 'sprite',
 
 	create = function(self, pos_vec, tileId)
-		local tbl = class.new(self, {
+		local tbl = entity.new(self, {
 			pos = pos_vec,
 			id = tileId,
 		}, { __call = function(s) return s.pos(); end })
@@ -66,7 +66,7 @@ animated_sprite = sprite:new {
 		id, fr_n = unpack(anim[current])
 	end,
 
-	yeildUntilDone = function(_ENV)
+	yieldUntilDone = function(_ENV)
 		repeat
 			yield()
 		until done
@@ -89,7 +89,7 @@ directional_animated_sprite = animated_sprite:new {
 		return tbl
 	end,
 
-	update = function(_ENV, _pos, mv)
+	update = function(_ENV, mv)
 		local angle = mv:getAngle();
 
 		function changeIf(dir, tbl)
@@ -112,9 +112,10 @@ directional_animated_sprite = animated_sprite:new {
 			else
 				changeIf('right', right_anim)
 			end
-		end
 
-		animated_sprite.update(_ENV)
+			-- only update the animation if the sprite is moving.
+			animated_sprite.update(_ENV)
+		end
 	end,
 }
 
