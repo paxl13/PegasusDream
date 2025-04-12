@@ -2,7 +2,6 @@ actor = class {
 	NAME = 'actor',
 
 	-- defaults values
-	tileId = 0,
 	mask = rect2(0, 0, 7, 7),
 	mv = vecNil(),
 	health = 1,
@@ -13,7 +12,7 @@ actor = class {
 
 		local tbl = class.new(self, {
 			pos = pos,
-			body = sprite(pos, self.tileId),
+			body = entityNil
 		})
 		tbl:change_state(tbl.initial_state)
 
@@ -33,7 +32,6 @@ actor = class {
 
 	change_state = function(self, name)
 		local state_fn = self[name];
-		d(self)
 		self.state_co = cocreate(state_fn)
 		self.current_state = name
 	end,
@@ -50,8 +48,6 @@ actor = class {
 
 	attacked = function(_ENV)
 		d('attacked')
-		-- delIf(cors, function(t) return t.name == 'blink_red' end)
-		-- add(cors, _ENV:start_state('blink_red'))
 	end,
 
 	draw = function(_ENV)

@@ -66,7 +66,7 @@ function wait_internal(v)
 end
 
 function toward_player(_ENV, len)
-	local v = player.pos - pos
+	local v = hero.pos - pos
 	return v:normalize(len)
 end
 
@@ -91,16 +91,21 @@ end
 
 -- Table helpers
 
-function split2(s)
+
+function splitN(s, n)
 	local t = split(s)
 	local len, rv, i = #t, {}, 1
 
 	while i < len do
-		add(rv, pack(unpack(t, i, i + 1)))
-		i += 2
+		add(rv, pack(unpack(t, i, i + (n - 1))))
+		i += n
 	end
 
 	return rv
+end
+
+function split2(s)
+	return splitN(s, 2)
 end
 
 function delIf(tbl, fn)

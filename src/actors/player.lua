@@ -19,25 +19,13 @@ player = actor:new {
 	mv = vecNil(),
 	cors = {},
 
-	sword_anim = {
-		{ 17, vec2(8, 0),   false, false },
-		{ 18, vec2(4, -4),  false, false },
-		{ 19, vec2(0, -8),  false, false },
-		{ 18, vec2(-4, -4), true,  false },
-		{ 17, vec2(-8, 0),  true,  false },
-		{ 18, vec2(-4, 4),  true,  true },
-		{ 19, vec2(0, 8),   false, true },
-		{ 18, vec2(4, 4),   false, true },
-	},
+	initial_state = 'normal',
 
-	initialize = function(_ENV)
-		pos = vec2(64, 64)
-		body = princess_body(pos)
-
-		sword = entityNil
-
-		_ENV:change_state('normal')
-		status = 'normal'
+	create = function(...)
+		local tbl = actor.create(...)
+		tbl.body = princess_body(tbl.pos)
+		tbl.weapon = entityNil
+		return tbl
 	end,
 
 	normal = forever(function(_ENV)
@@ -50,6 +38,7 @@ player = actor:new {
 		if io.nodir then
 			mv = mv * 0.95
 		end
+
 		yield()
 
 		-- state change on io
@@ -59,7 +48,6 @@ player = actor:new {
 
 
 	charging = function(_ENV)
-		status = 'charging'
 		mv = vecNil()
 
 		local cnt = 0
@@ -68,34 +56,28 @@ player = actor:new {
 			yield()
 		until not io.x or cnt > 60
 
-		status = 'normal'
 		return cnt > 60 and 'boost' or 'normal'
 	end,
 
 	attack = function(_ENV)
-		status = 'attack'
-
 		local angle = atan2(io.vec())
-		local initial_fr = flr(angle * 8) - 2
+		weapon = sword(pos, angle)
 
-		atk_fr = initial_fr;
 		repeat
 			mv += io.norm * 0.15
 
 			if (mv:sq_len() > 0.5 * 0.5) then
 				mv = mv:normalize(0.5)
 			end
-
-			atk_fr += 0.3
 			yield()
-		until atk_fr >= initial_fr + 4 + 0.3
+		until weapon.done
 
-		status = 'normal'
+		weapon = entityNil;
+
 		return 'normal'
 	end,
 
 	boost = function(_ENV)
-		status = 'boost'
 		body = princess_body_boosted(pos)
 		repeat
 			mv = (mv + (io.norm * 0.15)):normalize(3)
@@ -103,39 +85,39 @@ player = actor:new {
 		until colided
 
 		body = princess_body(pos)
-		status = 'normal'
 		return 'normal'
 	end,
 
 	update = function(_ENV)
-		if status == 'charging' then
+		if current_state == 'charging' then
 			boostFrames += 1
 		else
 			boostFrames = 0
 		end
-		if status == 'attack' or status == 'boost' then
-			sw_mask = _ENV:getSwordMask(atk_fr):offset(pos())
-			for act in all(actors) do
-				if not act.was_hit then
-					local has_hit = testRectIntersection(sw_mask, act.mask:offset(act.pos()))
-					if has_hit then
-						act:attacked()
-						-- act.health -= 1
-						-- if act.health <= 0 then
-						-- 	del(actors, act)
-						-- else
-						-- -- act.mv *= -1
-						-- d('act mv:'..tostr(act.mv))
-						-- act.mv:add((mv:normalize(3))())
-						-- d('modified act mv:'..tostr(act.mv))
-						-- act.was_hit=true;
-						-- end
-					end
-				end
-			end
-		end
 
-		sword:update()
+		-- if current_state == 'attack' or current_state == 'boost' then
+		-- 	sw_mask = _ENV:getSwordMask(atk_fr):offset(pos())
+		-- 	for act in all(actors) do
+		-- 		if not act.was_hit then
+		-- 			local has_hit = testRectIntersection(sw_mask, act.mask:offset(act.pos()))
+		-- 			if has_hit then
+		-- 				act:attacked()
+		-- 				-- act.health -= 1
+		-- 				-- if act.health <= 0 then
+		-- 				-- 	del(actors, act)
+		-- 				-- else
+		-- 				-- -- act.mv *= -1
+		-- 				-- d('act mv:'..tostr(act.mv))
+		-- 				-- act.mv:add((mv:normalize(3))())
+		-- 				-- d('modified act mv:'..tostr(act.mv))
+		-- 				-- act.was_hit=true;
+		-- 				-- end
+		-- 			end
+		-- 		end
+		-- 	end
+		-- end
+
+		weapon:update()
 		actor.update(_ENV)
 	end,
 
@@ -172,47 +154,13 @@ player = actor:new {
 		pal(9, 9)
 	end,
 
-	-- sword helpers.
-	drawBoostSword = function(_ENV)
-		local angle = mv:getAngle()
-		angle += 0.0625 -- 1/16
-		_ENV:drawSword(flr(angle * 8))
-	end,
-
-	drawSword = function(_ENV, frame)
-		local id, offset, flip_x, flip_y =
-				unpack(sword_anim[flr(frame) % #sword_anim + 1]);
-		local x, y = (pos + offset)()
-		spr(id, x, y, 1, 1, flip_x, flip_y)
-	end,
-
-	getSwordMask = function(_ENV, frame)
-		local _, offset =
-				unpack(sword_anim[flr(frame) % #sword_anim + 1]);
-
-		return rect2(
-			offset.x, offset.y,
-			offset.x + 8, offset.y + 8
-		)
-	end,
-
 	draw = function(_ENV)
-		-- handle pegasus arrow
-		if status == 'charging' then
+		if current_state == 'charging' then
 			_ENV:drawArrow()
 		end
 
-		if status == 'attack' then
-			_ENV:drawSword(atk_fr)
-		end
-
-		if status == 'boost' then
-			_ENV:drawBoostSword()
-		end
-
-		sword:draw()
+		weapon:draw()
 		actor.draw(_ENV)
-
 
 		if (colided) then
 			sfx(0)

@@ -9,7 +9,7 @@ __lua__
 --[[const]] MASK=false
 --[[const]] MV=false
 --[[const]] FPS=60
---[[const]] ENNY=true
+--[[const]] ENNY=false
 
 #include support/class.lua
 #include support/fns.lua
@@ -21,6 +21,7 @@ __lua__
 
 #include entities/entity.lua
 #include entities/sprite.lua
+#include entities/sword.lua
 
 #include actors/actor.lua
 #include actors/knight.lua
@@ -32,6 +33,8 @@ function _init()
 	framectr=0
 
 	actors={}
+
+	hero = player(64,64);
 
 	if ENNY then
 		for _=1,40 do
@@ -50,13 +53,12 @@ function _update60()
 	framectr+=1
 
 	mapper:updateAnim()
-
 	io:update()
 
-	player:input()
+	hero:input()
 	foreach(actors, invoke('input'))
 
-	player:update()
+	hero:update()
 	foreach(actors, invoke('update'))
 
 	mapper:updateCam()
@@ -65,7 +67,7 @@ function _update60()
 		points:update()
 
 		onceEvery(10, function()
-				hud:set('#mv', flr(#player.mv*100)/100)
+				hud:set('#mv', flr(#hero.mv*100)/100)
 
 				-- pad string
 				local cpuDisp = tostr(flr(stat(1)*100))
@@ -107,14 +109,14 @@ function _draw()
 	mapper:draw()
 	-- todo: sort by y axis
 	foreach(actors, invoke('draw'))
-	player:draw()
+	hero:draw()
 	mapper:draw2()
 	
 	if DEBUG then
 		points:draw()
 		hud:draw(mapper.campos())
 		foreach(actors, displayOverlay)
-		displayOverlay(player)
+		displayOverlay(hero)
 	end
 end
 
@@ -184,10 +186,6 @@ if DEBUG then
 		end,
 	})
 end
-
--->8
--- player classes
---
 
 -->8
 -- map stuff
@@ -320,7 +318,7 @@ mapper=class{
 	end,
 
 	updateCam=function(self)
-		local x,y=player.pos()
+		local x,y=hero.pos()
 
 		self.campos.x=(x-64)<0 and 0 or x-64
 		self.campos.y=(y-64)<0 and 0 or y-64

@@ -51,7 +51,7 @@ knight = actor:new {
 			end)
 
 			yield()
-		until (player.pos - pos):sq_len() < 20 * 20
+		until (hero.pos - pos):sq_len() < 20 * 20
 
 		return 'follow'
 	end,
@@ -72,8 +72,9 @@ knight = actor:new {
 	follow = function(_ENV)
 		repeat
 			mv = toward_player(_ENV, 0.5)
+
 			yield()
-		until #(player.pos - pos) > 40
+		until #(hero.pos - pos) > 40
 
 		return 'dash'
 	end,
