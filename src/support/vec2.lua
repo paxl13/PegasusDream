@@ -5,14 +5,23 @@ vec2 = class {
 
 	normalize = function(self, len)
 		len = len or 1
+		local mag = #self;
 
-		local l = #self;
-
-		if (l < 0.1) then
+		if (mag < 0.1) then
 			return vec2(0, 0)
 		end
 
-		return self * len / l
+		return self * len / mag
+	end,
+
+	cap_mag = function(self, len)
+		local sq_mag = self:sq_len()
+
+		if sq_mag > (len * len) then
+			return self:normalize(len)
+		end
+
+		return self
 	end,
 
 	add = function(self, i, j)
@@ -48,71 +57,76 @@ vec2 = class {
 	end,
 
 	create = function(self, x, y)
-		local vv = { x = x, y = y }
+		local V = { x = x, y = y }
 
-		if (type(x) == 'table' and x.NAME == 'vec2') then
-			vv = { x = x.x, y = x.y }
+		if (
+					type(x) == 'table' and
+					x.NAME == 'vec2'
+				) then
+			V = { x = x.x, y = x.y }
 		end
 
 		return class.new(
 			self,
-			vv,
-			{
-				__tostring = function(v)
-					return
-							'v<' .. format2(v.x) ..
-							',' .. format2(v.y) .. '>'
-				end,
-
-				__add = function(v1, v2)
-					return vec2(
-						v1.x + v2.x,
-						v1.y + v2.y
-					)
-				end,
-
-				__sub = function(v1, v2)
-					return vec2(
-						v1.x - v2.x,
-						v1.y - v2.y
-					)
-				end,
-
-				__mul = function(a, b)
-					if (type(b) == 'number') then
-						return vec2(
-							a.x * b,
-							a.y * b
-						)
-					end
-
-					return vec2(
-						a.x * b.x,
-						a.y * b.y
-					)
-				end,
-
-				__div = function(v1, q)
-					return vec2(
-						v1.x / q,
-						v1.y / q
-					)
-				end,
-
-				__len = function(v)
-					return sqrt(v.x ^ 2 + v.y ^ 2)
-				end,
-
-				__call = function(v)
-					return v.x, v.y
-				end,
-
-				__eq = function(v1, v2)
-					return v1.x == v2.x and v1.y == v2.y
-				end,
-			})
+			V,
+			vec2_mt)
 	end,
 }
+
+vec2_mt = {
+	__tostring = function(v)
+		return
+				'v<' .. format2(v.x) ..
+				',' .. format2(v.y) .. '>'
+	end,
+
+	__add = function(v1, v2)
+		return vec2(
+			v1.x + v2.x,
+			v1.y + v2.y
+		)
+	end,
+
+	__sub = function(v1, v2)
+		return vec2(
+			v1.x - v2.x,
+			v1.y - v2.y
+		)
+	end,
+
+	__mul = function(a, b)
+		if (type(b) == 'number') then
+			return vec2(
+				a.x * b,
+				a.y * b
+			)
+		end
+
+		return vec2(
+			a.x * b.x,
+			a.y * b.y
+		)
+	end,
+
+	__div = function(v1, q)
+		return vec2(
+			v1.x / q,
+			v1.y / q
+		)
+	end,
+
+	__len = function(v)
+		return sqrt(v.x ^ 2 + v.y ^ 2)
+	end,
+
+	__call = function(v)
+		return v.x, v.y
+	end,
+
+	__eq = function(v1, v2)
+		return v1.x == v2.x and v1.y == v2.y
+	end,
+};
 
 vecNil = function() return vec2(0, 0) end
 vecLeft = function() return vec2(-1, 0) end

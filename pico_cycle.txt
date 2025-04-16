@@ -1,0 +1,271 @@
++ : lua=1
+- : lua=1
+* : lua=2
+/ : lua=2
+\ : lua=2
+% : lua=2
+& : lua=1
+| : lua=1
+^^ : lua=1
+<< : lua=1
+>> : lua=1
+>>> : lua=1
+<<> : lua=1
+>>< : lua=1
+unary - : lua=1
+unary ~ : lua=1
+unary not : lua=2
+@ : lua=1
+% : lua=1
+$ : lua=1
+..0 : lua=4
+..32 : lua=4
+..32k : lua=4
+2^3 : lua=2 sys=16
+100^2.5 : lua=2 sys=32
+2^14.5 : lua=2 sys=32
+< : lua=4
+> : lua=4
+<= : lua=4
+>= : lua=4
+== : lua=4
+!= : lua=4
+and:t : lua=3
+and:f : lua=2
+and+ : lua=4
+andand : lua=5
+or:t : lua=2
+or:f : lua=3
+oror : lua=4
+==and : lua=5
+and== : lua=6
+==and== : lua=6
+==and==and== : lua=8
+==== : lua=8
+return :
+return 1 : lua=1
+return 1,2 : lua=2
+return 1,2,3 : lua=3
+return nil : lua=2
+return false : lua=2
+; :
+local : lua=2
+local=init : lua=1
+local=init+y : lua=1
+local*3 : lua=2
+local*3=init*2 : lua=4
+local*3=init*3 : lua=3
+local*4 : lua=2
+local*4=init*1 : lua=3
+local*4=init*4 : lua=4
+return arg :
+return arg + arg : lua=1
+return local :
+return local + local : lua=1
+return global : lua=2
+return global(new) : lua=2
+return global + global : lua=5
+return upvalue : lua=2
+return upvalue + upvalue : lua=5
+arg= : lua=1
+local= : lua=1
+global= : lua=2
+global=global + global : lua=7
+upvalue= : lua=3
+upvalue=upvalue + upvalue : lua=7
+x=x+y : lua=1
+x+=y : lua=1
+global+= : lua=5
+x=y : lua=1
+arg x,y=y,x : lua=3
+x,y=y,x : lua=3
+x,y=1,2 : lua=3
+x,x=1,2 : lua=3
+x,x,x=1,2,3 : lua=5
+x,x,x=1+,2+,3+ : lua=5
+x,x,x=1 : lua=6
+x,x,x=1,2,3,4 : lua=7
+x,x,x=1,2,3,4+ : lua=7
+x,x,x=1+,2+,3+,4+ : lua=7
+[i] : lua=2
+[i](new) : lua=2
+[k] : lua=2
+[k](new) : lua=2
+.x : lua=2
+.x(new) : lua=2
+[i]= : lua=2
+[i](new)= : lua=2
+[k]= : lua=2
+[k](new)= : lua=2
+.x= : lua=2
+.x(new)= : lua=2
+{} : lua=2
+{1} : lua=5
+{1,2} : lua=6
+{1..3} : lua=7
+{1..6} : lua=10
+{a} : lua=4
+{a,b} : lua=6
+{a..c} : lua=8
+{a..e} : lua=12
+{a..e,1} : lua=15
+{a..e,1..4} : lua=18
+{1+2} : lua=5
+# : lua=2
+func : lua=2
+func<up> : lua=2
+func<upup> : lua=2
+func<_env> : lua=2
+call() : lua=5
+call(1) : lua=6
+call(1,2) : lua=7
+call(1..5) : lua=10
+gcall() : lua=6
+gcall(1) : lua=7
+gcall(1,2) : lua=8
+gcall(1..5) : lua=11
+upcall() : lua=6
+upcall(1) : lua=7
+upcall(1,2) : lua=8
+upcall(1..5) : lua=11
+primcall() : lua=4
+primcall(1) : lua=5
+primcall(1,2) : lua=6
+primcall(1..5) : lua=9
+call(1+2) : lua=6
+call(1==2) : lua=9
+call(call()) : lua=10
+if:t : lua=2
+if:f : lua=2
+if== : lua=2
+if!= : lua=2
+ifel : lua=4
+ifelelse : lua=4
+while:f : lua=2
+while<=:f : lua=2
+while<0>,+= : lua=2
+while<1>,+= : lua=7
+while<2>,+= : lua=12
+while<5>,+= : lua=27
+while<10>,+= : lua=52
+for<n:0> : lua=7
+for<n:1> : lua=9
+for<n:2> : lua=11
+for<n:5> : lua=17
+for<n:10> : lua=27
+do :
++meta : lua=3
+.idx.meta : lua=4
+.newidx.meta : lua=4
+abs : lua=5
+add : lua=6
+add_i5 : lua=7 sys=1033
+add_i8 : lua=7 sys=1039
+add_i2 : lua=7 sys=1027
+add_i0 : lua=7 sys=1023
+all : lua=13
+all:step : lua=12.9297
+assert : lua=6
+assert_1 : lua=7
+atan2 : lua=6
+band : lua=4
+bnot : lua=4
+bor : lua=4
+bxor : lua=4
+ceil : lua=4
+chr : lua=5 sys=2
+chr4 : lua=8 sys=8
+chr8 : lua=12 sys=16
+cocreate : lua=5
+coresume_t : lua=32
+coresume_f : lua=32
+cos : lua=5
+costatus : lua=5
+count_3 : lua=5 sys=2
+count_6 : lua=5 sys=2
+count_v3 : lua=6 sys=6
+count_v6 : lua=6 sys=6
+del_1 : lua=6 sys=10
+del_4 : lua=6 sys=10
+del_6 : lua=6 sys=10
+del_0 : lua=6 sys=12
+deli_1 : lua=6
+deli_4 : lua=6
+deli_6 : lua=6
+flr : lua=4
+foreach_3 : lua=62
+foreach_5 : lua=74
+getmetatable : lua=5
+ipairs : lua=14
+ipairs:step : lua=5
+lshr : lua=4
+max : lua=6
+max0 : lua=5
+memcpy_10 : lua=7 sys=4
+memcpy_100 : lua=7 sys=50
+memcpy_1000 : lua=7 sys=500
+memset_10 : lua=7 sys=4
+memset_100 : lua=7 sys=50
+memset_1000 : lua=7 sys=500
+mid : lua=7
+min : lua=6
+min0 : lua=5
+next : lua=5
+next_ : lua=6
+ord : lua=5 sys=2
+ord_i : lua=6 sys=2
+pack_0 : lua=4 sys=2
+pack_1 : lua=5 sys=4
+pack_4 : lua=8 sys=16
+pairs : lua=14
+pairs:step : lua=5
+peek : lua=3 sys=2
+peek2 : lua=3 sys=2
+peek4 : lua=3 sys=2
+poke : lua=4 sys=2
+poke2 : lua=4 sys=2
+poke4 : lua=4 sys=2
+rawequal : lua=6
+rawget : lua=6
+rawlen : lua=5
+rawset : lua=7
+rnd : lua=4 sys=8
+rnd_v : lua=5 sys=8
+rotl : lua=4
+rotr : lua=4
+select_5_1 : lua=7
+select_10_5 : lua=7
+select_5_# : lua=7
+setmetatable : lua=6
+sgn : lua=5
+shl : lua=4
+shr : lua=4
+sin : lua=5
+split_0 : lua=6 sys=22
+split_2 : lua=6 sys=22
+split_3 : lua=6 sys=22
+split_3_num : lua=8 sys=22
+split_6 : lua=6 sys=58
+sqrt : lua=5 sys=28
+sub_3 : lua=7 sys=2
+sub_11 : lua=6 sys=10
+sub_4 : lua=6 sys=4
+sub_1 : lua=7 sys=2
+tonum_1 : lua=5 sys=4
+tonum_2 : lua=5 sys=4
+tonum_3 : lua=5 sys=4
+tonum_5 : lua=5 sys=4
+tonum_x : lua=5 sys=4
+tostr_1 : lua=41 sys=4
+tostr_2 : lua=41 sys=4
+tostr_3 : lua=41 sys=4
+tostr_5 : lua=41 sys=4
+tostr_x1 : lua=43 sys=4
+tostr_x5 : lua=43 sys=4
+type : lua=5
+unpack_1 : lua=5 sys=4
+unpack_3 : lua=7 sys=12
+unpack_10 : lua=5 sys=40
+band_#0 : lua=4
+band_#1 : lua=4
+band_#3 : lua=4

@@ -2,7 +2,7 @@ sprite = entity:new {
 	NAME = 'sprite',
 
 	create = function(self, pos_vec, tileId)
-		local tbl = entity.new(self, {
+		local tbl = entity.create(self, {
 			pos = pos_vec,
 			id = tileId,
 		}, { __call = function(s) return s.pos(); end })
@@ -30,11 +30,16 @@ sprite = entity:new {
 
 	update = function()
 	end,
+
+	getMask = function()
+	end,
 }
 
 animated_sprite = sprite:new {
 	NAME = 'animated_sprite',
 	anim = {},
+	anim_data = {},
+
 	fr_ctr = 0,
 	current = 0,
 	done = false,
@@ -62,8 +67,10 @@ animated_sprite = sprite:new {
 		if current > #anim then
 			current = loop and 1 or #anim
 			done = true
+			-- _ENV:destroy()
 		end
-		id, fr_n = unpack(anim[current])
+		data = anim[current]
+		id, fr_n = unpack(data, 1, 2)
 	end,
 
 	yieldUntilDone = function(_ENV)

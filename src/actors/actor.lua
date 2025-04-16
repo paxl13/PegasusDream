@@ -46,8 +46,11 @@ actor = class {
 		pos:add(mv())
 	end,
 
-	attacked = function(_ENV)
-		d('attacked')
+	attacked = function(_ENV, angle)
+		if touched then
+			atk_angle = angle
+			_ENV:change_state('touched')
+		end
 	end,
 
 	draw = function(_ENV)

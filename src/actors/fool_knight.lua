@@ -24,9 +24,7 @@ fool_knight = actor:new {
 
 	create = function(...)
 		local tbl = actor.create(...)
-		tbl.palette = {
-			[9] = flr(rnd(16)),
-		}
+		tbl.palette = { [9] = flr(rnd(16)) }
 		return tbl
 	end,
 

@@ -3,10 +3,18 @@ function inrng(...)
 	return mid(...) == ...
 end
 
-function d(...)
-	for v in all(pack(...)) do
-		printh(v)
+function debugPrint(...)
+	local tt, dt = flr(100 * time()) / 100, ''
+	if tt % 1 == 0 then
+		dt = tostr(tt) .. '.00'
+	else
+		dt = tostr(tt)
 	end
+	local str = '[' .. dt .. '] '
+	for v in all(pack(...)) do
+		str = str .. tostr(v)
+	end
+	printh(str)
 end
 
 function invoke(name)
@@ -91,7 +99,6 @@ end
 
 -- Table helpers
 
-
 function splitN(s, n)
 	local t = split(s)
 	local len, rv, i = #t, {}, 1
@@ -108,11 +115,10 @@ function split2(s)
 	return splitN(s, 2)
 end
 
-function delIf(tbl, fn)
-	for i in all(tbl) do
-		if fn(i) then
-			d('deleting')
-			del(tbl, i)
-		end
-	end
-end
+-- function delIf(tbl, fn)
+-- 	for i in all(tbl) do
+-- 		if fn(i) then
+-- 			del(tbl, i)
+-- 		end
+-- 	end
+-- end

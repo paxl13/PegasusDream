@@ -25,15 +25,14 @@ player = actor:new {
 		local tbl = actor.create(...)
 		tbl.body = princess_body(tbl.pos)
 		tbl.weapon = entityNil
+		tbl.boost_arrow = entityNil
 		return tbl
 	end,
 
 	normal = forever(function(_ENV)
 		mv += io.norm
 
-		if (mv:sq_len() > 1) then
-			mv = mv:normalize()
-		end
+		mv = mv:cap_mag(1)
 
 		if io.nodir then
 			mv = mv * 0.95
@@ -50,28 +49,27 @@ player = actor:new {
 	charging = function(_ENV)
 		mv = vecNil()
 
+		boost_arrow = arrow(pos)
 		local cnt = 0
 		repeat
 			cnt += 1
 			yield()
-		until not io.x or cnt > 60
+		until not io.x or cnt > 30
+		boost_arrow = entityNil
 
-		return cnt > 60 and 'boost' or 'normal'
+		return cnt > 30 and 'boost' or 'normal'
 	end,
 
 	attack = function(_ENV)
-		local angle = atan2(io.vec())
-		weapon = sword(pos, angle)
+		local angle = io.vec:getAngle()
 
+		weapon = sword(pos, angle)
 		repeat
 			mv += io.norm * 0.15
+			mv = mv:cap_mag(0.5)
 
-			if (mv:sq_len() > 0.5 * 0.5) then
-				mv = mv:normalize(0.5)
-			end
 			yield()
 		until weapon.done
-
 		weapon = entityNil;
 
 		return 'normal'
@@ -79,87 +77,66 @@ player = actor:new {
 
 	boost = function(_ENV)
 		body = princess_body_boosted(pos)
+
+		weapon = boost_sword(pos)
 		repeat
 			mv = (mv + (io.norm * 0.15)):normalize(3)
+
 			yield()
-		until colided
+			debugPrint(atk)
+		until colided or did_atk
+		weapon = entityNil
 
 		body = princess_body(pos)
 		return 'normal'
 	end,
 
 	update = function(_ENV)
-		if current_state == 'charging' then
-			boostFrames += 1
+		if weapon != entityNil then
+			weapon:update(mv)
+
+			sw_mask = weapon:getMask():offset(pos())
+			for act in all(actors) do
+				atk = testRectIntersection(
+					sw_mask,
+					act.mask:offset(act.pos())
+				)
+
+				if atk == true then
+					act:attacked(weapon:getAngle())
+					did_atk = true
+				end
+			end
 		else
-			boostFrames = 0
+			did_atk = false
+			sw_mask = nil
 		end
 
-		-- if current_state == 'attack' or current_state == 'boost' then
-		-- 	sw_mask = _ENV:getSwordMask(atk_fr):offset(pos())
-		-- 	for act in all(actors) do
-		-- 		if not act.was_hit then
-		-- 			local has_hit = testRectIntersection(sw_mask, act.mask:offset(act.pos()))
-		-- 			if has_hit then
-		-- 				act:attacked()
-		-- 				-- act.health -= 1
-		-- 				-- if act.health <= 0 then
-		-- 				-- 	del(actors, act)
-		-- 				-- else
-		-- 				-- -- act.mv *= -1
-		-- 				-- d('act mv:'..tostr(act.mv))
-		-- 				-- act.mv:add((mv:normalize(3))())
-		-- 				-- d('modified act mv:'..tostr(act.mv))
-		-- 				-- act.was_hit=true;
-		-- 				-- end
-		-- 			end
-		-- 		end
-		-- 	end
-		-- end
-
-		weapon:update()
+		boost_arrow:update(mv)
 		actor.update(_ENV)
 	end,
 
-	drawArrow = function(_ENV)
-		local x, y = pos()
-		local mult = 1 + boostFrames / 20
-		local sx = 8 * mult
+	touched = function(_ENV)
+		mv = vec2:fromAngle(atk_angle, 0.75)
+		local cnt = 0
+		repeat
+			yield()
+			cnt += 1
+		until colided or cnt > 60
 
-		local acol = {
-			10,
-			9,
-			8
-		}
-		local col = acol[flr(mult)]
-
-		pal(9, col)
-		if (io.vec.y ~= 0) then
-			sspr(
-				32, 8,
-				7, 7,
-				(x + 4) - (sx / 2), (y + 4) - (sx / 2),
-				sx, sx,
-				false, io.vec.y > 0
-			)
-		else
-			sspr(
-				40, 8,
-				7, 7,
-				(x + 4) - (sx / 2), (y + 4) - (sx / 2),
-				sx, sx,
-				io.vec.x > 0, false
-			)
-		end
-		pal(9, 9)
+		return 'normal'
 	end,
 
 	draw = function(_ENV)
-		if current_state == 'charging' then
-			_ENV:drawArrow()
+		boost_arrow:draw()
+		weapon:draw()
+
+		if sw_mask then
+			color(9)
+			rect(sw_mask())
+			color(7)
 		end
 
-		weapon:draw()
 		actor.draw(_ENV)
 
 		if (colided) then

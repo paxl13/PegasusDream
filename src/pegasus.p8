@@ -9,7 +9,7 @@ __lua__
 --[[const]] MASK=false
 --[[const]] MV=false
 --[[const]] FPS=60
---[[const]] ENNY=false
+--[[const]] ENNY=true
 
 #include support/class.lua
 #include support/fns.lua
@@ -22,28 +22,35 @@ __lua__
 #include entities/entity.lua
 #include entities/sprite.lua
 #include entities/sword.lua
+#include entities/arrow.lua
 
 #include actors/actor.lua
 #include actors/knight.lua
 #include actors/fool_knight.lua
 #include actors/player.lua
 
+if DEBUG then 
+	sysDisp = '' 
+	meDisp = '' 
+end
+
 function _init()
-	d('---INIT----')
+	debugPrint('---INIT----')
 	framectr=0
 
 	actors={}
+	drawPipeline={}
 
 	hero = player(64,64);
 
 	if ENNY then
-		for _=1,40 do
+		for _=1,9 do
 			local kind = rnd({knight, fool_knight})
 			add(actors, kind(getRandomTile()))
 		end
 	end
 
-  -- add(actors, knight(getRandomTile()))
+  add(actors, knight(getRandomTile()))
 	-- add(actors, fool_knight(48,48))
 
 	-- sfx(0)
@@ -69,17 +76,13 @@ function _update60()
 		onceEvery(10, function()
 				hud:set('#mv', flr(#hero.mv*100)/100)
 
-				-- pad string
-				local cpuDisp = tostr(flr(stat(1)*100))
-				if (#cpuDisp == 1) then 
-					cpuDisp=' '..cpuDisp
-				end
 
-				hud:set('c%', cpuDisp)
+				hud:set('s%', sysDisp)
+				hud:set('m%', meDisp)
 				hud:set('#a', #actors)
 				hud:set('c', mapper.campos)
+				debugPrint('update: ', stat(1))
 		end)
-
 	end
 end
 
@@ -102,14 +105,25 @@ if DEBUG then
 	end
 end
 
+-- function drawInOrder () 
+-- 	return qSort(drawPipeline, function (i, j)
+-- 		return i.pos.y > j.pos.y
+-- 	end)
+-- end
+
 
 function _draw()
 	cls(11)
-
 	mapper:draw()
+
+	-- debugPrint('new draw ------------')
 	-- todo: sort by y axis
+	-- orderDrawPipeline()
+	-- foreach(drawPipeline, invoke('draw'))
+
 	foreach(actors, invoke('draw'))
 	hero:draw()
+
 	mapper:draw2()
 	
 	if DEBUG then
@@ -117,6 +131,22 @@ function _draw()
 		hud:draw(mapper.campos())
 		foreach(actors, displayOverlay)
 		displayOverlay(hero)
+
+		onceEvery(10, function()
+			debugPrint('draw: ', stat(1))
+			debugPrint('draw (system): ', stat(2))
+			debugPrint('draw (me): ', stat(1)-stat(2))
+
+			-- pad string
+			meDisp = tostr(flr((stat(1)-stat(2))*100))
+			if (#meDisp == 1) then 
+				meDisp=' '..meDisp
+			end
+			sysDisp = tostr(flr(stat(2)*100))
+			if (#sysDisp == 1) then 
+				sysDisp=' '..sysDisp
+			end
+		end)
 	end
 end
 
