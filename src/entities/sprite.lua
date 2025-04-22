@@ -24,7 +24,18 @@ sprite = entity:new {
 		end
 	end,
 
+	pal_draw = function(_ENV)
+		pal(palette)
+		spr(id, pos())
+
+		pal()
+		palt(0, false)
+		palt(11, true)
+	end,
+
 	setPal = function(_ENV, p)
+		-- todo: get taht working
+		-- draw = pal_draw -- overwrite normal draw
 		palette = p
 	end,
 
@@ -83,6 +94,8 @@ animated_sprite = sprite:new {
 directional_animated_sprite = animated_sprite:new {
 	NAME = 'directional_animated_sprite',
 
+	invert_mv = false,
+
 	create = function(self, pos_vec, up_anim, down_anim, left_anim, right_anim)
 		local tbl = animated_sprite.create(self, pos_vec, right_anim, true)
 
@@ -97,7 +110,12 @@ directional_animated_sprite = animated_sprite:new {
 	end,
 
 	update = function(_ENV, mv)
-		local angle = mv:getAngle();
+		local angle = mv:getAngle()
+
+		if invert_mv then
+			angle = abs(angle - 0.5)
+		end
+
 
 		function changeIf(dir, tbl)
 			if current_dir != dir then

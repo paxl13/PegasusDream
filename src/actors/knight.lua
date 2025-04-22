@@ -27,8 +27,12 @@ knight = actor:new {
 
 	create = function(...)
 		local _ENV = actor.create(...)
+
 		palette = { [12] = flr(rnd(16)) }
 		weapon = entityNil
+		maxHp = flr(rnd(5) + 1)
+		hp = maxHp
+
 		return _ENV
 	end,
 
@@ -42,7 +46,7 @@ knight = actor:new {
 			)
 
 			if atk == true then
-				hero:attacked(weapon:getAngle())
+				hero:attacked(weapon:getAngle(), 1)
 			end
 		end
 
@@ -101,7 +105,7 @@ knight = actor:new {
 	end,
 
 	attack = function(_ENV)
-		weapon = sword(pos, toward_player(_ENV):getAngle())
+		weapon = sword(pos, toward_player(_ENV):getAngle(), 3)
 
 		weapon:yieldUntilDone()
 		weapon = entityNil
@@ -109,18 +113,10 @@ knight = actor:new {
 		return 'wander'
 	end,
 
-	touched = function(_ENV)
-		mv = vec2:fromAngle(atk_angle, 0.75)
-		local cnt = 0
-		repeat
-			yield()
-			cnt += 1
-		until colided or cnt > 60
-
-		return 'wander'
-	end,
+	knockback_exit = 'wander',
 
 	dying = function(_ENV)
+		weapon = entityNil
 		mv = vecUp() * 0.25
 
 		body = knight_dying_sprite(pos)

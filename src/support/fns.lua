@@ -67,6 +67,38 @@ function resume(thr, ...)
 	return rv
 end
 
+-- usage: call once to create coroutine
+cofunc = function(fn)
+	return function()
+		return setmetatable(
+			{ thr = cocreate(fn) }, {
+				__call = function(cof, ...)
+					return resume(cof.thr, ...)
+				end
+			})
+	end
+end
+
+-- usage: require already called cofunc
+cofunc2 = function(f1_co, f2_co)
+	return cofunc(function(act)
+		local cof1, cof2 = f1_co(), f2_co()
+		repeat
+			cof1(act)
+			cof2(act)
+			yield()
+		until false
+	end)
+end
+
+clone = function(tbl)
+	local n = {}
+	for k, v in pairs(tbl) do
+		n[k] = v
+	end
+	return n
+end
+
 function wait_internal(v)
 	for _ = 1, v do
 		yield()
@@ -114,11 +146,3 @@ end
 function split2(s)
 	return splitN(s, 2)
 end
-
--- function delIf(tbl, fn)
--- 	for i in all(tbl) do
--- 		if fn(i) then
--- 			del(tbl, i)
--- 		end
--- 	end
--- end

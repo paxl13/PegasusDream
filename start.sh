@@ -23,6 +23,7 @@ find src/ | entr -s '
     --no-lint-unused-global \
     --no-lint-fail \
     -m --rename-safe-only \
+    --count \
     --no-minify-lines \
     src/pegasus.p8 \
     dist/pegasus.p8;

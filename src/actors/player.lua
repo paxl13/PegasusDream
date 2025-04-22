@@ -12,6 +12,13 @@ princess_body_boosted = directional_animated_sprite.pre_create_str(
 	[[ 230, 2, 231, 2, 232, 2 ]] -- right
 );
 
+princess_body_dying = animated_sprite.pre_create_str([[
+	 54, 15,
+	 53, 7,
+	 52, 7,
+	 51, 15,
+]]);
+
 player = actor:new {
 	NAME = 'player',
 
@@ -22,16 +29,21 @@ player = actor:new {
 	initial_state = 'normal',
 
 	create = function(...)
-		local tbl = actor.create(...)
-		tbl.body = princess_body(tbl.pos)
-		tbl.weapon = entityNil
-		tbl.boost_arrow = entityNil
-		return tbl
+		local _ENV = actor.create(...)
+
+		body = princess_body(pos)
+		-- sha = shadow(pos)
+		weapon = entityNil
+		boost_arrow = entityNil
+
+		maxHp = 10
+		hp = 10
+
+		return _ENV
 	end,
 
 	normal = forever(function(_ENV)
 		mv += io.norm
-
 		mv = mv:cap_mag(1)
 
 		if io.nodir then
@@ -57,7 +69,7 @@ player = actor:new {
 		until not io.x or cnt > 30
 		boost_arrow = entityNil
 
-		return cnt > 30 and 'boost' or 'normal'
+		return cnt > 30 and 'boost' or 'dash'
 	end,
 
 	attack = function(_ENV)
@@ -75,18 +87,41 @@ player = actor:new {
 		return 'normal'
 	end,
 
+	dash = function(_ENV)
+		body = princess_body_boosted(pos)
+		-- _ENV:set_draw_co(double)
+
+		draw_co = dash_draw_co()
+		mv = io.norm * 3
+		iframe = 15
+
+		local cnt = 0
+		repeat
+			yield()
+			cnt += 1
+		until colided or cnt > 15 or io.o
+
+		iframe = 0
+		weapon = entityNil
+
+		draw_co = nil
+		body = princess_body(pos)
+		return io.x and 'attack' or 'normal'
+	end,
+
 	boost = function(_ENV)
 		body = princess_body_boosted(pos)
 
+		draw_co = flash_dash_co()
 		weapon = boost_sword(pos)
 		repeat
 			mv = (mv + (io.norm * 0.15)):normalize(3)
 
 			yield()
-			debugPrint(atk)
 		until colided or did_atk
 		weapon = entityNil
 
+		draw_co = nil
 		body = princess_body(pos)
 		return 'normal'
 	end,
@@ -103,7 +138,7 @@ player = actor:new {
 				)
 
 				if atk == true then
-					act:attacked(weapon:getAngle())
+					act:attacked(weapon:getAngle(), 1)
 					did_atk = true
 				end
 			end
@@ -116,31 +151,24 @@ player = actor:new {
 		actor.update(_ENV)
 	end,
 
-	touched = function(_ENV)
-		mv = vec2:fromAngle(atk_angle, 0.75)
-		local cnt = 0
-		repeat
-			yield()
-			cnt += 1
-		until colided or cnt > 60
+	knockback_exit = 'normal',
 
-		return 'normal'
+	dying = function(_ENV)
+		globals.running_game = false
+		body = princess_body_dying(pos)
+		body:setPal(palette)
+		body:yieldUntilDone()
+
+		change_scene(gameover_scene)
 	end,
 
 	draw = function(_ENV)
 		boost_arrow:draw()
 		weapon:draw()
-
-		if sw_mask then
-			color(9)
-			rect(sw_mask())
-			color(7)
-		end
-
 		actor.draw(_ENV)
 
-		if (colided) then
-			sfx(0)
-		end
+		-- if (colided) then
+		-- 	sfx(0)
+		-- end
 	end,
 }

@@ -9,6 +9,11 @@ sword_anim_data = splitN([[
 18,10,4,4,f,t,0.875,
 ]], 7)
 
+sword_anim_speed = split([[
+	8, 5, 4, 2, 1, 1, 1, 1
+]])
+
+
 sprite_extension = {
 	draw = function(_ENV)
 		local id, _, ox, oy, fx, fy = unpack(data)
@@ -40,12 +45,15 @@ sword_mask = {
 sword = animated_sprite:new {
 	NAME = 'sword',
 
-	create = function(self, pos_vec, angle)
+	create = function(self, pos_vec, angle, speed)
+		speed = speed or 1
 		local anim = {}
-		local ifr = flr(angle * 8) - 2
+		local afr = flr(angle * 8)
 
-		for n = ifr, ifr + 4 do
-			local fr = sword_anim_data[(n % 8) + 1]
+		for n = afr - 2, afr + 2 do
+			local fr = clone(sword_anim_data[(n % 8) + 1])
+			fr[2] = sword_anim_speed[n - afr + 3] * speed
+
 			add(anim, fr)
 			-- add(anim, sword_anim_data[(n % 8) + 1])
 		end
@@ -77,8 +85,6 @@ boost_sword = entity {
 
 	update = function(_ENV, mv)
 		local angle = mv:getAngle() + 0.0625
-		data = sword_anim_data[
-		flr(angle * 8) % 8 + 1
-		];
+		data = sword_anim_data[flr(angle * 8) % 8 + 1];
 	end,
 }

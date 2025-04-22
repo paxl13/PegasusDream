@@ -23,29 +23,13 @@ fool_knight = actor:new {
 	initial_state = 'birth',
 
 	create = function(...)
-		local tbl = actor.create(...)
-		tbl.palette = { [9] = flr(rnd(16)) }
-		return tbl
+		local _ENV = actor.create(...)
+
+		palette = { [9] = flr(rnd(16)) }
+		maxHp = flr(rnd(5) + 1)
+		hp = maxHp
+		return _ENV
 	end,
-
-	-- palette_fun = forever(function(_ENV)
-	-- 	onceEvery(30, function()
-	-- 		body:setPal({
-	-- 			[9] = flr(rnd(16)),
-	-- 		})
-	-- 	end)
-
-	-- 	yield()
-	-- end),
-
-	-- blink_red = forever(function(_ENV)
-	-- body:setPal({ [9] = 8 })
-	-- wait_internal(30)
-	-- body:setPal(palette)
-	-- wait_internal(30)
-
-	-- return {}
-	-- end),
 
 	birth = function(_ENV)
 		body = fool_birth_sprite(pos)
@@ -65,6 +49,8 @@ fool_knight = actor:new {
 
 		yield()
 	end),
+
+	knockback_exit = 'wander',
 
 	dying = forever(function(_ENV)
 		mv = vecUp() * 0.25

@@ -13,367 +13,53 @@ __lua__
 
 #include support/class.lua
 #include support/fns.lua
+#include support/debug.lua
 
 #include support/vec2.lua
 #include support/rect2.lua
 
 #include support/io.lua
+#include support/map.lua
 
 #include entities/entity.lua
 #include entities/sprite.lua
 #include entities/sword.lua
 #include entities/arrow.lua
+#include entities/hp_bar.lua
+-- #include entities/shadow.lua
 
 #include actors/actor.lua
 #include actors/knight.lua
 #include actors/fool_knight.lua
 #include actors/player.lua
 
-if DEBUG then 
-	sysDisp = '' 
-	meDisp = '' 
-end
+#include scene/scene.lua
+#include scene/title.lua
+#include scene/game.lua
+#include scene/game_over.lua
 
 function _init()
 	debugPrint('---INIT----')
-	framectr=0
-
-	actors={}
-	drawPipeline={}
-
-	hero = player(64,64);
-
-	if ENNY then
-		for _=1,9 do
-			local kind = rnd({knight, fool_knight})
-			add(actors, kind(getRandomTile()))
-		end
-	end
-
-  add(actors, knight(getRandomTile()))
-	-- add(actors, fool_knight(48,48))
-
-	-- sfx(0)
+	change_scene(title_scene)
 end
 
-function _update60()
-	framectr+=1
-
-	mapper:updateAnim()
-	io:update()
-
-	hero:input()
-	foreach(actors, invoke('input'))
-
-	hero:update()
-	foreach(actors, invoke('update'))
-
-	mapper:updateCam()
-
-	if DEBUG then
-		points:update()
-
-		onceEvery(10, function()
-				hud:set('#mv', flr(#hero.mv*100)/100)
-
-
-				hud:set('s%', sysDisp)
-				hud:set('m%', meDisp)
-				hud:set('#a', #actors)
-				hud:set('c', mapper.campos)
-				debugPrint('update: ', stat(1))
-		end)
-	end
+function _update60() 
+	current_scene.update()
+end
+function _draw() 
+	current_scene.draw()
 end
 
-if DEBUG then
-	function displayOverlay(a)
-		-- display colision box
-		if MASK then
-			color(9)
-			local r = a.mask:offset(a.pos())
-			rect(r())
-			color(7)
-		end
-
-		if MV then
-			-- display mv
-			local pos=a.pos+vec2(3,3);
-			local zz=pos+(a.mv*20);
-			line(pos.x, pos.y, zz.x, zz.y)
-		end
-	end
-end
-
--- function drawInOrder () 
--- 	return qSort(drawPipeline, function (i, j)
--- 		return i.pos.y > j.pos.y
--- 	end)
--- end
-
-
-function _draw()
-	cls(11)
-	mapper:draw()
-
-	-- debugPrint('new draw ------------')
-	-- todo: sort by y axis
-	-- orderDrawPipeline()
-	-- foreach(drawPipeline, invoke('draw'))
-
-	foreach(actors, invoke('draw'))
-	hero:draw()
-
-	mapper:draw2()
-	
-	if DEBUG then
-		points:draw()
-		hud:draw(mapper.campos())
-		foreach(actors, displayOverlay)
-		displayOverlay(hero)
-
-		onceEvery(10, function()
-			debugPrint('draw: ', stat(1))
-			debugPrint('draw (system): ', stat(2))
-			debugPrint('draw (me): ', stat(1)-stat(2))
-
-			-- pad string
-			meDisp = tostr(flr((stat(1)-stat(2))*100))
-			if (#meDisp == 1) then 
-				meDisp=' '..meDisp
-			end
-			sysDisp = tostr(flr(stat(2)*100))
-			if (#sysDisp == 1) then 
-				sysDisp=' '..sysDisp
-			end
-		end)
-	end
-end
-
--->8
--- debug classes
---
-
-if DEBUG then
-	points=class({
-		pt={},
-
-		add=function(_ENV,x,y,c,l,r)
-			add(
-			points.pt,
-			{x=x,y=y,c=c,l=l,r=r or 1}
-			)
-		end,
-
-		update=function(_ENV)
-			for v in all(pt) do
-				v.l-=1
-				if(v.l<=0) then
-					del(pt, v)
-				end
-			end
-		end,
-
-		draw=function(_ENV) 
-			foreach(pt, function(p)
-				if(p.r>1) then
-					circfill(p.x,p.y,p.r,p.c)
-				else
-					pset(p.x, p.y, p.c)
-				end
-			end)
-		end,
-	})
-
-	hud=class({
-		baseY=128-7,
-		data={},
-		order={},
-		
-		set=function(_ENV, key, val)
-			if not val then
-				del(data, key)
-				del(order, key)
-			else
-				if not data[key] then
-					add(order, key)
-				end
-
-				data[key]=tostr(val)
-			end
-		end,
-
-		draw=function(_ENV, x, y)
-			rectfill(x,y+baseY,x+128,y+baseY+6,1)
-			local str=""
-			for i in all(order) do
-				local j=data[i]
-				str=str..
-					i..': '..j..' '
-			end
-			line(x,y+baseY-1, x+128, y+baseY-1, 0)
-			print(str,x,y+baseY+1,6)
-		end,
-	})
-end
-
--->8
--- map stuff
--- flags on tiles
--- fl0: colision mask
--- fl4,5: anmiation mask
--- fl7: anmiation speed / 2
-
-function is_wall(x, y)
-	local colided = 
-		fget(mget(x\8, y\8), 0)
-
-	if DEBUG then
-		-- debugging code
-		if colided then
-			points:add(x, y, 
-				colided and 8 or 9,
-				colided and 30 or 1,
-				colided and 2 or 1
-			)
-		end
-	end
-	
-	return colided
-end
-
--- pos=position to check.
-function process_map_colision(pos,mv)
-	-- sprite corners:
-	-- c1 c2
-	-- c3 c4
-
-	local colided=false
-
-	local m_x1, m_y1, m_x2, m_y2=pos()
-
-	local c1 = is_wall(m_x1, m_y1)
-	local c2 = is_wall(m_x1, m_y2)
-	local c3 = is_wall(m_x2, m_y1)
-	local c4 = is_wall(m_x2, m_y2)
-
-	if (c1 and c3 or c2 and c4) then
-		-- horizonal
-		mv.y*=-1
-		colided=true
-	end
-
-	if (c1 and c2 or c3 and c4) then
-		-- vertical
-		mv.x*=-1
-		colided=true
-	end
-
-	if (not colided and (
-		c1 or c2 or c3 or c4
-	)) then
-		-- corners
-		mv*=-1
-		colided=true
-	end
-
-	return mv,colided
-end
-
-function addmask(v, mask)
-	local l=v&mask
-	l=(l+1)&mask
-	v=(v&~mask)+l
-	return v
-end
-
-function eachtile(campos, fn)
-	local x,y=campos.x\8,campos.y\8
-
-	for i=x,x+15 do
-		for j=y,y+15 do
-			local t=mget(i, j)
-			local f=fget(t)
-			fn(
-				t, f,
-				function(n)
-					mset(i, j, n)
-				end,
-				i, j
-			)
-		end
-	end
-end
-
-function getRandomTile()
-	local is_valid=false
-	local i,j
-	repeat
-		i = flr(rnd(16))
-		j = flr(rnd(16))
-
-		local t=mget(i,j)
-		is_valid = not fget(t,0)
-	until is_valid
-	return i*8,j*8
-end
-
-mapper=class{
-	initialize=function(_ENV)
-		-- setup dark blue as transparency
-		palt(0, false)
-		palt(11, true)
-
-		speed=12
-		campos=vec2(0,0)
-	end,
-	
-	updateAnim=function(self)
-		local animframe=framectr/self.speed
-		
-		if (animframe<<16==0) then
-			eachtile(
-				self.campos,
-				function(t,f,set)
-					local m=(f>>4)&0b11
-					local s=(f>>7)&0b1
-					if m!=0 and animframe&s==0 
-					then
-						set(addmask(t,m))
-					end
-				end
-			)
-		end
-
-	end,
-
-	updateCam=function(self)
-		local x,y=hero.pos()
-
-		self.campos.x=(x-64)<0 and 0 or x-64
-		self.campos.y=(y-64)<0 and 0 or y-64
-	end,
-
-	draw=function(_ENV)
-		camera(campos())
-		map()
-	end,
-
-	draw2=function(_ENV)
-		camera(campos())
-		map(0, 0, 0, 0, 128, 32, 0x2)
-	end
-}
 
 __gfx__
 00000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb000000bbbbbbbbbbbbbbbbbccccccccccccccccbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 66666666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb00777700bbbbbbbbbbbbbbbbc6cc6cccccc6ccccbbb33bbbbbb33bbbbbb33bbbbbbbbbbb
-65555556bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb07aaaa70bbbbbbbbbbbbbbbb6b66b6cccc6b6cc6bbb33bbbbb3a73bbbbb33bbbbbb33bbb
-66656666bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb07aa7a70bbbbbbbbbbbbbbbbbbbbbb6cc6bbb66bb33a733bb33aa33bb33a733bb3b33b3b
-00656000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb07aaaa70b6bb6bb6bbbbbbbbbbbbb6cccc6bbbbbb33aa33bb3b33b3bb33aa33bb33a733b
-00656000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb09777790666666b66bbbbbbbbbbb6ccccc6bbbbbbbb33bbbbbb33bbbbbb33bbbbb3aa3bb
-00656000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb099999906cc6cc6cc6bbbbbbbbbb6cccc6bbbbbbbbb33bbbbbbbbbbbbbb33bbbbbb33bbb
-00656000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb09999990cccccccccc6bbbbbbbbbb6cccc6bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+65555556bb0000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb07aaaa70bbbbbbbbbbbbbbbb6b66b6cccc6b6cc6bbb33bbbbb3a73bbbbb33bbbbbb33bbb
+6665666600000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb07aa7a70bbbbbbbbbbbbbbbbbbbbbb6cc6bbb66bb33a733bb33aa33bb33a733bb3b33b3b
+0065600000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb07aaaa70b6bb6bb6bbbbbbbbbbbbb6cccc6bbbbbb33aa33bb3b33b3bb33aa33bb33a733b
+0065600000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb09777790666666b66bbbbbbbbbbb6ccccc6bbbbbbbb33bbbbbb33bbbbbb33bbbbb3aa3bb
+0065600000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb099999906cc6cc6cc6bbbbbbbbbb6cccc6bbbbbbbbb33bbbbbbbbbbbbbb33bbbbbb33bbb
+00656000bb0000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb09999990cccccccccc6bbbbbbbbbb6cccc6bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 bb0000bbbbbbbbbbbbbb0000bbb0a0bbbbb0bbbbbbb00bbbbbbbbbbb09000090cccccccccc6bbbbbccccccccbbbbbbb6c6bbbbbbcc6bbbbbcccbbbbbcc666bbb
 b0cccc0b0bbbbbbbbbb0aaa0bb0a990bbb090bbbbb090bbbbbbbbbbb00777700ccccccccccc6bbbbc6cc6cc6bbbbbb6cc6bbbbbbcc6bbbbbcccbbbbbcc666bbb
 0cccccc00000000bbb0a9990bb0a990bb09990bbb099000bbbbbbbbb07aaaa70ccccccccccc6bbbb6b666666bbbbb6cccc6bbbbbccc6bbbbccccbbbbccc666bb
