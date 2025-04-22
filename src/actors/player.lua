@@ -89,23 +89,20 @@ player = actor:new {
 
 	dash = function(_ENV)
 		body = princess_body_boosted(pos)
-		-- _ENV:set_draw_co(double)
-
 		draw_co = dash_draw_co()
 		mv = io.norm * 3
-		iframe = 15
 
 		local cnt = 0
 		repeat
+			iframe = 2
 			yield()
 			cnt += 1
 		until colided or cnt > 15 or io.o
 
-		iframe = 0
 		weapon = entityNil
-
 		draw_co = nil
 		body = princess_body(pos)
+
 		return io.x and 'attack' or 'normal'
 	end,
 
@@ -115,6 +112,7 @@ player = actor:new {
 		draw_co = flash_dash_co()
 		weapon = boost_sword(pos)
 		repeat
+			iframe = 2
 			mv = (mv + (io.norm * 0.15)):normalize(3)
 
 			yield()
@@ -164,6 +162,7 @@ player = actor:new {
 
 	draw = function(_ENV)
 		boost_arrow:draw()
+
 		weapon:draw()
 		actor.draw(_ENV)
 

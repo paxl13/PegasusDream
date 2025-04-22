@@ -113,7 +113,7 @@ directional_animated_sprite = animated_sprite:new {
 		local angle = mv:getAngle()
 
 		if invert_mv then
-			angle = abs(angle - 0.5)
+			angle = (angle - 0.5) % 1
 		end
 
 

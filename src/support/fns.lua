@@ -81,11 +81,11 @@ end
 
 -- usage: require already called cofunc
 cofunc2 = function(f1_co, f2_co)
-	return cofunc(function(act)
+	return cofunc(function(...)
 		local cof1, cof2 = f1_co(), f2_co()
 		repeat
-			cof1(act)
-			cof2(act)
+			cof1(...)
+			cof2(...)
 			yield()
 		until false
 	end)

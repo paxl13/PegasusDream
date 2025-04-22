@@ -78,6 +78,14 @@ actor = class {
 			draw_co(_ENV)
 		end
 
+		-- display when invincible for debugging
+		if DEBUG then
+			if iframe ~= 0 then
+				local center = pos + vec2(4, 4)
+				circ(center.x, center.y, 5, 8)
+			end
+		end
+
 		hpBar:draw()
 		body:draw()
 	end
