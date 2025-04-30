@@ -4,7 +4,7 @@ rect2 = class {
 	offset = function(self, i, j)
 		return rect2(
 			self.x1 + i, self.y1 + j,
-			self.x2 + i, self.y2 + j
+			self.h, self.w
 		)
 	end,
 
@@ -25,10 +25,16 @@ rect2 = class {
 
 	-- TODO:
 	-- create = function(self, x1, y1, w, h)
-	create = function(self, x1, y1, x2, y2)
-		local tbl = class.new(
-			self,
-			{ x1 = x1, y1 = y1, x2 = x2, y2 = y2 },
+	create = function(self, x1, y1, w, h)
+		local tbl = class.new(self,
+			{
+				x1 = x1,
+				y1 = y1,
+				x2 = x1 + w,
+				y2 = y1 + h,
+				h = h,
+				w = w
+			},
 			{
 				__tostring = function(_ENV)
 					return 'r<'

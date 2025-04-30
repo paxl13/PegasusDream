@@ -32,7 +32,7 @@ sword_extension = {
 
 		return rect2(
 			pos.x + ox, pos.y + oy,
-			pos.x + ox + 8, pos.y + oy + 8
+			8, 8
 		)
 	end,
 
