@@ -19,8 +19,6 @@ fool_body = animated_sprite.pre_create_str([[
 
 fool_knight = actor:new {
 	NAME = 'Fool_Knight',
-	tileId = 49,
-	initial_state = 'birth',
 
 	create = function(...)
 		local _ENV = actor.create(...)
@@ -28,6 +26,8 @@ fool_knight = actor:new {
 		palette = { [9] = flr(rnd(16)) }
 		maxHp = flr(rnd(5) + 1)
 		hp = maxHp
+		spike = true
+
 		return _ENV
 	end,
 
@@ -53,7 +53,8 @@ fool_knight = actor:new {
 	knockback_exit = 'wander',
 
 	dying = forever(function(_ENV)
-		mv = vecUp() * 0.25
+		spike = false
+		solid = false
 
 		body = fool_dying_sprite(pos)
 		body:setPal(palette)

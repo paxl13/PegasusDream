@@ -1,18 +1,20 @@
 title_scene = scene {
-	update = function()
-		if DEBUG then
-			change_scene(game_scene)
-		end
+	init = function(_ENV)
+	end,
 
-		if btn() ~= 0 then
+	update = function()
+		if btn(5) or DEBUG then
 			change_scene(game_scene)
 		end
 	end,
 
-	draw = function()
-		cls(0)
+	draw = function(_ENV)
+		cls()
 
-		print('boot of fury')
-		print('Press any btn to begin')
+
+		shadowPrint('bOOT oF fURY', 16, true)
+		shadowPrint('BY PAXL13', 24, true)
+
+		shadowPrint('press any btn to restart', 96)
 	end
 }

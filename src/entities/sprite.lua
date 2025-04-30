@@ -17,8 +17,7 @@ sprite = entity:new {
 			spr(id, pos())
 			-- todo... do better
 			pal()
-			palt(0, false)
-			palt(11, true)
+			palt(0b0000000000010000)
 		else
 			spr(id, pos())
 		end

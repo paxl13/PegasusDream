@@ -34,10 +34,9 @@ player = actor:new {
 		body = princess_body(pos)
 		-- sha = shadow(pos)
 		weapon = entityNil
-		boost_arrow = entityNil
 
-		maxHp = 10
-		hp = 10
+		maxHp = 20
+		hp = 20
 
 		return _ENV
 	end,
@@ -61,28 +60,35 @@ player = actor:new {
 	charging = function(_ENV)
 		mv = vecNil()
 
-		boost_arrow = arrow(pos)
+		draw_co = charge_draw_co()
 		local cnt = 0
 		repeat
 			cnt += 1
 			yield()
 		until not io.x or cnt > 30
-		boost_arrow = entityNil
+		draw_co = nil
+
 
 		return cnt > 30 and 'boost' or 'dash'
 	end,
 
 	attack = function(_ENV)
-		local angle = io.vec:getAngle()
+		local angle = io.nodir and
+				mv:getAngle() or
+				io.vec:getAngle()
 
-		weapon = sword(pos, angle)
+		angle -= 0.5
 		repeat
-			mv += io.norm * 0.15
-			mv = mv:cap_mag(0.5)
+			angle += 0.5
+			weapon = sword(pos, angle)
+			repeat
+				mv += io.norm * 0.15
+				mv = mv:cap_mag(0.5)
 
-			yield()
-		until weapon.done
-		weapon = entityNil;
+				yield()
+			until weapon.done
+			weapon = entityNil;
+		until not io.o
 
 		return 'normal'
 	end,
@@ -91,6 +97,7 @@ player = actor:new {
 		body = princess_body_boosted(pos)
 		draw_co = dash_draw_co()
 		mv = io.norm * 3
+		solid = false
 
 		local cnt = 0
 		repeat
@@ -99,6 +106,7 @@ player = actor:new {
 			cnt += 1
 		until colided or cnt > 15 or io.o
 
+		solid = true
 		weapon = entityNil
 		draw_co = nil
 		body = princess_body(pos)
@@ -125,27 +133,50 @@ player = actor:new {
 	end,
 
 	update = function(_ENV)
-		if weapon != entityNil then
+		if weapon ~= entityNil then
 			weapon:update(mv)
 
-			sw_mask = weapon:getMask():offset(pos())
-			for act in all(actors) do
-				atk = testRectIntersection(
-					sw_mask,
+			local sw_mask = weapon:getMask()
+			for _, act in inext, actors do
+				atk = sw_mask:intersect(
 					act.mask:offset(act.pos())
 				)
 
-				if atk == true then
-					act:attacked(weapon:getAngle(), 1)
+				if atk == true and act.iframe == 0 then
+					act:attacked(weapon)
 					did_atk = true
 				end
 			end
 		else
 			did_atk = false
-			sw_mask = nil
 		end
 
-		boost_arrow:update(mv)
+		for _, act in inext, actors do
+			if act.spike then
+				dmg = testRectIntersection(
+					mask:offset(pos()),
+					act.mask:offset(act.pos())
+				)
+
+				if dmg then
+					_ENV:attacked(
+						{
+							getAngle = function()
+								return (act.pos - pos):getAngle() + 0.5
+							end,
+							getDmg = function(_ENV)
+								return 1
+							end,
+							getMvMag = function(_ENV)
+								return 1
+							end
+						},
+						1
+					)
+				end
+			end
+		end
+
 		actor.update(_ENV)
 	end,
 
@@ -161,8 +192,6 @@ player = actor:new {
 	end,
 
 	draw = function(_ENV)
-		boost_arrow:draw()
-
 		weapon:draw()
 		actor.draw(_ENV)
 

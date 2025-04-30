@@ -9,6 +9,7 @@ actor = class {
 	maxHp = nil,
 	solid = true,
 	spike = false,
+	initial_state = 'birth',
 	iframe = 0,
 
 	create = function(self, x, y)
@@ -18,7 +19,6 @@ actor = class {
 			pos = pos,
 			body = entityNil
 		})
-		tbl:include(defaults_actor_mixin)
 
 		tbl:change_state(tbl.initial_state)
 		tbl.hpBar = hp_bar(tbl)
@@ -57,45 +57,27 @@ actor = class {
 		pos:add(mv())
 	end,
 
-	attacked = function(_ENV, angle, dmg)
-		if iframe == 0 then
-			iframe = 20
+	attacked = function(_ENV, atk_weapon)
+		if iframe ~= 0 then return end
 
-			debugPrint(_ENV.name, ' ', hp, ' ', dmg)
-			hp -= dmg
-			if hp <= 0 then
-				debugPrint(_ENV.NAME, hp);
-				_ENV:change_state('dying')
-			elseif knockback then
-				atk_angle = angle
-				_ENV:change_state('knockback')
-			end
+		iframe = 20
+		hp -= atk_weapon:getDmg()
+		if hp <= 0 and current_state ~= 'dying' then
+			_ENV:change_state('dying')
+			return
 		end
+
+		mv = vec2:fromAngle(
+			atk_weapon:getAngle(),
+			atk_weapon:getMvMag()
+		)
+
+		_ENV:change_state('knockback')
 	end,
 
-	draw = function(_ENV)
-		if draw_co then
-			draw_co(_ENV)
-		end
-
-		-- display when invincible for debugging
-		if DEBUG then
-			if iframe ~= 0 then
-				local center = pos + vec2(4, 4)
-				circ(center.x, center.y, 5, 8)
-			end
-		end
-
-		hpBar:draw()
-		body:draw()
-	end
-}
-
-defaults_actor_mixin = {
 	knockback = function(_ENV)
 		draw_co = flash_dash_co()
 
-		mv = vec2:fromAngle(atk_angle, 0.75)
 		weapon = entityNil
 		body.invert_mv = true
 
@@ -103,7 +85,7 @@ defaults_actor_mixin = {
 		repeat
 			yield()
 			cnt += 1
-		until colided or cnt > 60
+		until colided or cnt > 30
 
 		body.invert_mv = false
 		draw_co = nil
@@ -111,55 +93,13 @@ defaults_actor_mixin = {
 
 		return knockback_exit
 	end,
+
+	draw = function(_ENV)
+		if draw_co then
+			draw_co(_ENV)
+		end
+
+		hpBar:draw(iframe)
+		body:draw()
+	end
 }
-
-white_draw_co = cofunc(forever(function(_ENV)
-	body:setPal(split([[
-		7, 7, 7, 7,
-		7, 7, 7, 7,
-		7, 7, 7, 7,
-		7, 7, 7, 7
-	]]))
-	wait_internal(4)
-	body:setPal(palette)
-	wait_internal(4)
-end))
-
-dash_draw_co = cofunc(function(act)
-	local part = {}
-
-	repeat
-		onceEvery(3, function()
-			add(part, {
-				pos = vec2(act.pos):add(4, 4),
-				mv = vec2:random(1),
-				life = 10
-			})
-		end)
-
-		foreach(part, function(s)
-			if inrng(s.life, 1, 9) then
-				local c = pget(s.pos())
-
-				circfill(
-					s.pos.x,
-					s.pos.y,
-					s.life / 2,
-					c > 8 and c - 8 or 0
-				)
-				s.pos:add(s.mv())
-			elseif s.life <= 0 then
-				del(part, s)
-			end
-
-			s.life -= 0.5
-		end)
-
-		yield()
-	until false
-end)
-
-flash_dash_co = cofunc2(
-	dash_draw_co,
-	white_draw_co
-)

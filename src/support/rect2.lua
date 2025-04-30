@@ -8,6 +8,23 @@ rect2 = class {
 		)
 	end,
 
+	intersect = function(self, other)
+		local xa1, ya1, xa2, ya2 = self()
+		local xb1, yb1, xb2, yb2 = other()
+
+		local insideY =
+				(ya1 > yb1 and ya1 < yb2) or
+				(ya2 > yb1 and ya2 < yb2)
+
+		local insideX =
+				(xa1 > xb1 and xa1 < xb2) or
+				(xa2 > xb1 and xa2 < xb2)
+
+		return insideX and insideY
+	end,
+
+	-- TODO:
+	-- create = function(self, x1, y1, w, h)
 	create = function(self, x1, y1, x2, y2)
 		local tbl = class.new(
 			self,
@@ -27,6 +44,18 @@ rect2 = class {
 		return tbl
 	end
 }
+
+function testIntersection(xa1, ya1, xa2, ya2, xb1, yb1, xb2, yb2)
+	local insideY =
+			(ya1 > yb1 and ya1 < yb2) or
+			(ya2 > yb1 and ya2 < yb2)
+
+	local insideX =
+			(xa1 > xb1 and xa1 < xb2) or
+			(xa2 > xb1 and xa2 < xb2)
+
+	return insideX and insideY
+end
 
 function testRectIntersection(ra, rb)
 	local xa1, ya1, xa2, ya2 = ra()

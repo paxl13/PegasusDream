@@ -24,7 +24,6 @@ find src/ | entr -s '
     --no-lint-fail \
     -m --rename-safe-only \
     --count \
-    --no-minify-lines \
     src/pegasus.p8 \
     dist/pegasus.p8;
   echo "=================================";

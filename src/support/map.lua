@@ -58,8 +58,8 @@ function getRandomTile()
 	local is_valid = false
 	local i, j
 	repeat
-		i = flr(rnd(16))
-		j = flr(rnd(16))
+		i = flr(rnd(30))
+		j = flr(rnd(30))
 
 		local t = mget(i, j)
 		is_valid = not fget(t, 0)

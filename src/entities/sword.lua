@@ -14,7 +14,7 @@ sword_anim_speed = split([[
 ]])
 
 
-sprite_extension = {
+sword_extension = {
 	draw = function(_ENV)
 		local id, _, ox, oy, fx, fy = unpack(data)
 
@@ -25,25 +25,37 @@ sprite_extension = {
 			1, 1,
 			fx == 't', fy == 't'
 		)
-	end
-}
+	end,
 
-sword_mask = {
 	getMask = function(_ENV)
 		local ox, oy = unpack(data, 3, 4)
 
 		return rect2(
-			ox, oy,
-			ox + 8, oy + 8
+			pos.x + ox, pos.y + oy,
+			pos.x + ox + 8, pos.y + oy + 8
 		)
 	end,
+
 	getAngle = function(_ENV)
 		return data[7]
+	end,
+
+	getDmg = function(_ENV)
+		return flr(rnd(rndDmg) + minDmg)
+	end,
+
+	getMvMag = function(_ENV)
+		return rnd(rndMag) + minMag
 	end
 }
 
 sword = animated_sprite:new {
 	NAME = 'sword',
+
+	minDmg = 1,
+	maxDmg = 3,
+	minMag = 0.25,
+	rndMag = 0.75,
 
 	create = function(self, pos_vec, angle, speed)
 		speed = speed or 1
@@ -65,8 +77,7 @@ sword = animated_sprite:new {
 			false
 		)
 
-		tbl:include(sprite_extension)
-		tbl:include(sword_mask)
+		tbl:include(sword_extension)
 
 		return tbl
 	end,
@@ -76,10 +87,16 @@ sword = animated_sprite:new {
 boost_sword = entity {
 	NAME = 'boost_sword',
 
+	minDmg = 4,
+	rndDmg = 2,
+	minMag = 1,
+	rndMag = 2,
+
 	create = function(self, pos_vec)
 		local tbl = entity.create(self, { pos = pos_vec });
-		tbl:include(sprite_extension)
-		tbl:include(sword_mask)
+
+		tbl:include(sword_extension)
+
 		return tbl
 	end,
 

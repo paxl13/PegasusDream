@@ -10,26 +10,89 @@ function game_init()
 	hero = player(64, 64);
 
 	if ENNY then
-		for _ = 1, 9 do
+		for _ = 1, 20 do
 			local kind = rnd({ knight, fool_knight })
 			add(actors, kind(getRandomTile()))
 		end
 	end
+end
 
-	add(actors, knight(getRandomTile()))
+-- if (vec2.sq_len(a.pos - b.pos) < 8 * 8) then
+-- local colided = a:test_collision(b)
+-- for b in all(pack(unpack(acts, i + 1, #actors))) do
+-- onceEvery(10, function()
+-- 	debugPrint('#act ', #acts, ' test# ', nbr, ' n# ', n, ' cpu# ', stat(1) - ta)
+-- local ta = stat(1)
+-- local n, nbr = 0, 0
+-- nbr += 1
+-- n += 1
+--
+--
+-- do
+--   local _f, _s, _var = explist
+--   while true do
+--     local var_1, ... , var_n = _f(_s, _var)
+--     _var = var_1
+--     if _var == nil then break end
+--     block
+--   end
+-- end
+--
+
+-- function non_solid_next(tbl, i)
+-- 	i += 1
+
+-- 	local v
+-- 	while i < #tbl do
+-- 		v = tbl[i]
+-- 		if (v.solid) then
+-- 			return i, v
+-- 		end
+-- 		i += 1
+-- 	end
+-- end
+
+function deal_with_colision()
+	local acts = pack(hero, unpack(actors))
+
+	for i, a in inext, acts, 0 do
+		for _, b in inext, acts, i do
+			if (
+						a.pos.x - b.pos.x < 12 and
+						a.pos.y - b.pos.y < 12
+					) then
+				if a.solid and b.solid then
+					local colided = testIntersection(
+						b.mask.x1 + b.pos.x, b.mask.y1 + b.pos.y,
+						b.mask.x2 + b.pos.x, b.mask.y2 + b.pos.y,
+						a.mask.x1 + a.pos.x, a.mask.y1 + a.pos.y,
+						a.mask.x2 + a.pos.x, a.mask.y2 + a.pos.y
+					)
+
+					if colided then
+						local mv = vec2:fromAngle((b.pos - a.pos):getAngle())
+						a.mv = mv * -1
+						b.mv = mv
+					end
+				end
+			end
+		end
+	end
 end
 
 function game_update()
 	framectr += 1
 
 	mapper:updateAnim()
-	io:update()
 
+	io:update()
 	hero:input()
 
 	if running_game then
 		foreach(actors, invoke('input'))
 	end
+
+	deal_with_colision()
 
 	hero:update()
 

@@ -21,16 +21,13 @@ knight_body = directional_animated_sprite.pre_create_str(
 
 knight = actor:new {
 	NAME = 'knight',
-	tileId = 48,
-
-	initial_state = 'birth',
 
 	create = function(...)
 		local _ENV = actor.create(...)
 
 		palette = { [12] = flr(rnd(16)) }
 		weapon = entityNil
-		maxHp = flr(rnd(5) + 1)
+		maxHp = flr(rnd(10) + 1)
 		hp = maxHp
 
 		return _ENV
@@ -40,13 +37,12 @@ knight = actor:new {
 		if weapon:isNotNil() then
 			weapon:update(mv)
 
-			local atk = testRectIntersection(
-				weapon:getMask():offset(pos()),
+			local atk = weapon:getMask():intersect(
 				hero.mask:offset(hero.pos())
 			)
 
-			if atk == true then
-				hero:attacked(weapon:getAngle(), 1)
+			if atk == true and hero.iframe == 0 then
+				hero:attacked(weapon)
 			end
 		end
 
@@ -76,7 +72,7 @@ knight = actor:new {
 			end)
 
 			yield()
-		until (hero.pos - pos):sq_len() < 20 * 20
+		until #(hero.pos - pos) < 20
 
 		return 'follow'
 	end,
@@ -99,7 +95,7 @@ knight = actor:new {
 			mv = toward_player(_ENV, 0.5)
 
 			yield()
-		until #(hero.pos - pos) < 16
+		until #(hero.pos - pos) > 12
 
 		return 'attack'
 	end,
@@ -117,7 +113,7 @@ knight = actor:new {
 
 	dying = function(_ENV)
 		weapon = entityNil
-		mv = vecUp() * 0.25
+		solid = false
 
 		body = knight_dying_sprite(pos)
 		body:setPal(palette)
