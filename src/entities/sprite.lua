@@ -23,14 +23,14 @@ sprite = entity:new {
 		end
 	end,
 
-	pal_draw = function(_ENV)
-		pal(palette)
-		spr(id, pos())
+	-- pal_draw = function(_ENV)
+	-- 	pal(palette)
+	-- 	spr(id, pos())
 
-		pal()
-		palt(0, false)
-		palt(11, true)
-	end,
+	-- 	pal()
+	-- 	palt(0, false)
+	-- 	palt(11, true)
+	-- end,
 
 	setPal = function(_ENV, p)
 		-- todo: get taht working
