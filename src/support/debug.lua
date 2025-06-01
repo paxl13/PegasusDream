@@ -3,15 +3,12 @@ if DEBUG then
 	meDisp = ''
 
 	function displayOverlay(a)
-		-- display colision box
-		if MASK then
+		if _OVERLAY then
 			color(9)
 			local r = a.mask:offset(a.pos())
 			rect(r())
 			color(7)
-		end
 
-		if MV then
 			-- display mv
 			local pos = a.pos + vec2(3, 3);
 			local zz = pos + (a.mv * 20);

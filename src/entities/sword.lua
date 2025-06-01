@@ -52,8 +52,8 @@ sword_extension = {
 sword = animated_sprite:new {
 	NAME = 'sword',
 
-	minDmg = 1,
-	maxDmg = 3,
+	minDmg = _SWORD_MIN_DMG,
+	maxDmg = _SWORD_RND_DMG,
 	minMag = 0.25,
 	rndMag = 0.75,
 
@@ -87,8 +87,8 @@ sword = animated_sprite:new {
 boost_sword = entity {
 	NAME = 'boost_sword',
 
-	minDmg = 4,
-	rndDmg = 2,
+	minDmg = _BOOST_MIN_DMG,
+	rndDmg = _BOOST_RND_DMG,
 	minMag = 1,
 	rndMag = 2,
 

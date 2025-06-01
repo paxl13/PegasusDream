@@ -17,7 +17,8 @@ actor = class {
 
 		local tbl = class.new(self, {
 			pos = pos,
-			body = entityNil
+			body = entityNil,
+			weapon = entityNil
 		})
 
 		tbl:change_state(tbl.initial_state)
@@ -27,10 +28,6 @@ actor = class {
 	end,
 
 	input = function(_ENV)
-		if DEBUG_PRINT then
-			d('actor: ' .. NAME .. 'in state: ' .. current_state)
-		end
-
 		local ns = resume(state_co, _ENV)
 		if ns then
 			_ENV:change_state(ns)
@@ -100,6 +97,7 @@ actor = class {
 		end
 
 		hpBar:draw(iframe)
+		weapon:draw()
 		body:draw()
 	end
 }

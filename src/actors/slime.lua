@@ -12,19 +12,21 @@ fool_dying_sprite = animated_sprite.pre_create_str([[
 	 35, 15,
 ]], false);
 
-fool_body = animated_sprite.pre_create_str([[
-	32, 30,
-	33, 30,
-]], true);
+slime_body = directional_animated_sprite.pre_create_str(
+	[[ 208, 10, 209, 10, 210, 10, 209, 10 ]], -- up
+	[[ 208, 10, 209, 10, 210, 10, 209, 10 ]], -- up
+	[[ 240, 10, 241, 10, 242, 10 ]],         -- left
+	[[ 224, 10, 225, 10, 226, 10 ]]          -- right
+);
 
-fool_knight = actor:new {
-	NAME = 'Fool_Knight',
+slime = actor:new {
+	NAME = 'slime',
 
 	create = function(...)
 		local _ENV = actor.create(...)
-
 		palette = { [9] = flr(rnd(16)) }
-		maxHp = flr(rnd(5) + 1)
+
+		maxHp = flr(rnd(_SLIME_HP) + 1)
 		hp = maxHp
 		spike = true
 
@@ -32,12 +34,14 @@ fool_knight = actor:new {
 	end,
 
 	birth = function(_ENV)
+		yieldFor(flr(rnd(_DELAY_BIRTH)))
+
 		body = fool_birth_sprite(pos)
 		body:setPal(palette)
 		body:yieldUntilDone()
 
-		body = fool_body(pos, mv)
-		body:setPal(palette)
+		body = slime_body(pos, mv)
+		-- body:setPal(palette)
 		return 'wander'
 	end,
 

@@ -9,11 +9,9 @@ function game_init()
 
 	hero = player(64, 64);
 
-	if ENNY then
-		for _ = 1, 20 do
-			local kind = rnd({ knight, fool_knight })
-			add(actors, kind(getRandomTile()))
-		end
+	for _ = 1, 20 do
+		local kind = rnd({ knight, slime })
+		add(actors, kind(getRandomTile()))
 	end
 end
 

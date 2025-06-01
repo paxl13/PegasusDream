@@ -23,17 +23,6 @@ function invoke(name)
 	end
 end
 
-function format2(n)
-	local s =
-			flr(n) .. "." ..
-			flr(n % 1 * 10 ^ 2)
-
-	if #s ~= 4 then
-		s = s .. '0'
-	end
-	return s
-end
-
 function indent2(s)
 	local l = split(s, '\n')
 	local rv = ''
@@ -99,12 +88,6 @@ clone = function(tbl)
 	return n
 end
 
-function wait_internal(v)
-	for _ = 1, v do
-		yield()
-	end
-end
-
 function toward_player(_ENV, len)
 	local v = hero.pos - pos
 	return v:normalize(len)
@@ -126,6 +109,12 @@ function forever(fn)
 				return rv
 			end
 		until false
+	end
+end
+
+function yieldFor(v)
+	for _ = 1, v do
+		yield()
 	end
 end
 

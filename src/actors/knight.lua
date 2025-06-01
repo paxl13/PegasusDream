@@ -26,8 +26,7 @@ knight = actor:new {
 		local _ENV = actor.create(...)
 
 		palette = { [12] = flr(rnd(16)) }
-		weapon = entityNil
-		maxHp = flr(rnd(10) + 1)
+		maxHp = flr(rnd(_KNIGHT_HP) + 1)
 		hp = maxHp
 
 		return _ENV
@@ -49,15 +48,11 @@ knight = actor:new {
 		actor.update(_ENV)
 	end,
 
-	draw = function(_ENV)
-		weapon:draw()
-		actor.draw(_ENV)
-	end,
-
 	birth = function(_ENV)
+		yieldFor(flr(rnd(_DELAY_BIRTH)))
+
 		body = knight_birth_sprite(pos)
 		body:setPal(palette)
-
 		body:yieldUntilDone()
 
 		body = knight_body(pos)
@@ -67,7 +62,7 @@ knight = actor:new {
 
 	wander = function(_ENV)
 		repeat
-			onceEvery(2 * FPS, function()
+			onceEvery(2 * _FPS, function()
 				mv = vec2:random(0.2)
 			end)
 
@@ -79,13 +74,13 @@ knight = actor:new {
 
 	dash = function(_ENV)
 		mv = vecNil()
-		wait_internal(1 * FPS)
+		yieldFor(1 * _FPS)
 
 		mv = toward_player(_ENV, 3)
-		wait_internal(0.5 * FPS)
+		yieldFor(0.5 * _FPS)
 
 		mv = vecNil()
-		wait_internal(1 * FPS)
+		yieldFor(1 * _FPS)
 
 		return 'wander'
 	end,

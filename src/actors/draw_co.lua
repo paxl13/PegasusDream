@@ -5,9 +5,9 @@ white_draw_co = cofunc(forever(function(_ENV)
 		7, 7, 7, 7,
 		7, 7, 7, 7
 	]]))
-	wait_internal(4)
+	yieldFor(4)
 	body:setPal(palette)
-	wait_internal(4)
+	yieldFor(4)
 end))
 
 dash_draw_co = cofunc(function(act)

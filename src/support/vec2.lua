@@ -74,10 +74,9 @@ vec2 = class {
 }
 
 vec2_mt = {
-	__tostring = function(v)
+	__tostring = function(_ENV)
 		return
-				'v<' .. format2(v.x) ..
-				',' .. format2(v.y) .. '>'
+				'v<' .. x .. ',' .. y .. '>'
 	end,
 
 	__add = function(v1, v2)

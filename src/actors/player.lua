@@ -33,10 +33,10 @@ player = actor:new {
 
 		body = princess_body(pos)
 		-- sha = shadow(pos)
-		weapon = entityNil
+		-- weapon = entityNil
 
-		maxHp = 20
-		hp = 20
+		maxHp = _PLAYER_HP
+		hp = _PLAYER_HP
 
 		return _ENV
 	end,
@@ -133,7 +133,7 @@ player = actor:new {
 	end,
 
 	update = function(_ENV)
-		if weapon ~= entityNil then
+		if weapon:isNotNil() then
 			weapon:update(mv)
 
 			local sw_mask = weapon:getMask()
@@ -189,14 +189,5 @@ player = actor:new {
 		body:yieldUntilDone()
 
 		change_scene(gameover_scene)
-	end,
-
-	draw = function(_ENV)
-		weapon:draw()
-		actor.draw(_ENV)
-
-		-- if (colided) then
-		-- 	sfx(0)
-		-- end
 	end,
 }
